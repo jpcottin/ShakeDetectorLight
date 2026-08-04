@@ -15,6 +15,14 @@ Small Shake Detected!      →  magnitude > 11   (pink, vibrates)
 Big Shake Detected!        →  magnitude > 16   (purple, vibrates)
 ```
 
+| Idle (dark theme, on device) | Small shake | Big shake |
+|:---:|:---:|:---:|
+| <img src="docs/idle.png" width="250" alt="Idle state"> | <img src="docs/small-shake.png" width="250" alt="Small shake state"> | <img src="docs/big-shake.png" width="250" alt="Big shake state"> |
+
+The small- and big-shake captures were taken on an emulator while driving the
+virtual accelerometer (`adb emu sensor set acceleration x:y:z`) — a handy way
+to test sensor apps without physically shaking anything.
+
 ## Technologies used
 
 ### Build system: Lightbuild
