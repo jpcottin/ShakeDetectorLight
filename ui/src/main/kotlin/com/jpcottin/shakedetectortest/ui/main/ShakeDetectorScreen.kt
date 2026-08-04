@@ -27,15 +27,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.jpcottin.shakedetectortest.theme.Pink80
 import com.jpcottin.shakedetectortest.theme.Purple80
-import com.jpcottin.shakedetectortest.theme.ShakeDetectorLightTheme
 import kotlin.math.sqrt
 import kotlinx.coroutines.delay
 
+/**
+ * Stateful screen: listens to the accelerometer, classifies shakes, vibrates on
+ * shake level changes and resets the label one second after the last shake.
+ */
 @Composable
 fun ShakeDetectorScreen(modifier: Modifier = Modifier) {
   var shakeLevel by remember { mutableStateOf(ShakeLevel.NONE) }
@@ -52,6 +54,23 @@ fun ShakeDetectorScreen(modifier: Modifier = Modifier) {
     shakeLevel = newShakeLevel
   }
 
+  ShakeDetectorContent(shakeLevel = shakeLevel, acceleration = acceleration, modifier = modifier)
+
+  LaunchedEffect(shakeLevel) {
+    if (shakeLevel != ShakeLevel.NONE) {
+      delay(1000)
+      shakeLevel = ShakeLevel.NONE
+    }
+  }
+}
+
+/** Stateless UI, driven directly by previews and UI tests. */
+@Composable
+internal fun ShakeDetectorContent(
+  shakeLevel: ShakeLevel,
+  acceleration: Float,
+  modifier: Modifier = Modifier,
+) {
   Column(
     modifier = modifier.fillMaxSize(),
     verticalArrangement = Arrangement.Center,
@@ -76,13 +95,6 @@ fun ShakeDetectorScreen(modifier: Modifier = Modifier) {
       style = MaterialTheme.typography.bodyLarge,
       modifier = Modifier.padding(top = 16.dp),
     )
-  }
-
-  LaunchedEffect(shakeLevel) {
-    if (shakeLevel != ShakeLevel.NONE) {
-      delay(1000)
-      shakeLevel = ShakeLevel.NONE
-    }
   }
 }
 
@@ -133,10 +145,4 @@ private fun vibrate(context: Context) {
   } else {
     @Suppress("DEPRECATION") vibrator.vibrate(150)
   }
-}
-
-@Preview(showBackground = true)
-@Composable
-fun ShakeDetectorScreenPreview() {
-  ShakeDetectorLightTheme { ShakeDetectorScreen() }
 }

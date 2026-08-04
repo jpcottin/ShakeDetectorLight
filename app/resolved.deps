@@ -1136,6 +1136,25 @@ dependencies:
   - org.jetbrains.kotlin:kotlin-stdlib:2.3.20
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2
+- id: androidx.compose.ui:ui-test-manifest:1.9.5
+  requestedVersion: 1.8.0
+  resolvedVersion: 1.9.5
+  artifacts:
+    aar:
+      url: https://dl.google.com/dl/android/maven2/androidx/compose/ui/ui-test-manifest/1.9.5/ui-test-manifest-1.9.5.aar
+      sha256: 5717a82cef33c7a06bf0ae106975b5c0fb2a3d4fea05b8a033fc47e43f8b6db1
+      cachePath: androidx/compose/ui/ui-test-manifest/1.9.5/ui-test-manifest-1.9.5.aar
+      extracted: androidx/compose/ui/ui-test-manifest/1.9.5/ui-test-manifest-1.9.5-exploded
+    module:
+      url: https://dl.google.com/dl/android/maven2/androidx/compose/ui/ui-test-manifest/1.9.5/ui-test-manifest-1.9.5.module
+      sha256: 0a900388ca8a084e5a8a9c8e17a2ab814dbc7982e7862c25e80eb4cd22256122
+      cachePath: androidx/compose/ui/ui-test-manifest/1.9.5/ui-test-manifest-1.9.5.module
+    pom:
+      url: https://dl.google.com/dl/android/maven2/androidx/compose/ui/ui-test-manifest/1.9.5/ui-test-manifest-1.9.5.pom
+      sha256: cfbf2fa711e914f16e16733499400954aa3abf926657361c5b2f7d1988cb164a
+      cachePath: androidx/compose/ui/ui-test-manifest/1.9.5/ui-test-manifest-1.9.5.pom
+  transitiveDependencies:
+  - androidx.activity:activity:1.13.0
 - id: androidx.compose.ui:ui-text:1.9.5
   resolvedVersion: 1.9.5
   artifacts:
