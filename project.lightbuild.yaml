@@ -1,0 +1,18 @@
+project:
+  name: Shake Detector Light
+
+modules:
+  - app
+  - ui
+
+repositories:
+  - google
+  - mavenCentral
+
+lightbuild:
+  version: "0.0.10-alpha01"
+
+build:
+  kotlin: 2.3.20
+  java:
+    version: 17
