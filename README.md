@@ -77,11 +77,27 @@ Two schema-valid keys that currently do nothing, both verified against
 | `kotlin.allWarningsAsErrors` | Accepted; never reaches the compiler — a deliberate unused-variable warning still builds. Left in the config so it takes effect once implemented. |
 | `kotlin.jvmTarget` | Fails validation as *"integer found, string expected"* whether written `17` or `"17"` — the YAML parser coerces the string to an integer before the schema check. Project-level `build.java.version` works instead. |
 
-And one behavioural surprise worth knowing about: **declaring an
-`android.packaging.release` block changes what a bare `android build` builds**,
-from `//app:buildDebug` to `//app:buildRelease`. Nothing warns you; the debug
-APK simply stops appearing under `app/build/outputs/apk/debug/`. CI names the
-debug target explicitly for that reason.
+Two behavioural surprises, both triggered by simply declaring an
+`android.packaging.release` block and neither warned about:
+
+1. **It changes what a bare `android build` builds**, from `//app:buildDebug`
+   to `//app:buildRelease`. The debug APK stops appearing under
+   `app/build/outputs/apk/debug/`. CI names the debug target explicitly for
+   that reason.
+2. **It drops the `.debug` applicationId suffix from debug builds.** The debug
+   applicationId goes from `com.jpcottin.shakedetectortest.debug` back to
+   `com.jpcottin.shakedetectortest`, so debug and release builds can no longer
+   be installed side by side. Lightbuild exposes no `applicationIdSuffix` key,
+   so this cannot currently be configured back.
+
+The second one is easy to miss, because a hardcoded `adb shell am start -n
+<pkg>/<activity>` then fails with *"Activity class does not exist"* while any
+`|| true` around it keeps the job green. CI now reads the applicationId out of
+the built APK with `aapt2 dump packagename` and resolves the launcher component
+with `cmd package resolve-activity` instead of assuming either.
+
+`android run` is unaffected — it resolves the component itself, which is a good
+reason to prefer it over hand-rolled `adb` invocations.
 
 Behind the scenes Lightbuild converts these files to another build system that
 performs the actual build; you only ever edit the YAML.

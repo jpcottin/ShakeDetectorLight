@@ -405,8 +405,14 @@ jobs:
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           export ANDROID_HOME="$SDK" ANDROID_SDK_ROOT="$SDK"
           export PATH="$SDK/platform-tools:$PATH"
-          PKG=com.jpcottin.shakedetectortest.debug
-          ACT=com.jpcottin.shakedetectortest.MainActivity
+          # Read the applicationId out of the APK rather than hardcoding it.
+          # Declaring an android.packaging.release block drops the .debug
+          # applicationId suffix, so a hardcoded name silently stops resolving.
+          AAPT="$(ls -d "$SDK"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)"
+          [ -n "$AAPT" ] || { echo "ERROR: no aapt2 found under $SDK/build-tools"; exit 1; }
+          PKG="$("$AAPT" dump packagename app/build/outputs/apk/debug/app-debug.apk)"
+          [ -n "$PKG" ] || { echo "ERROR: could not read applicationId from the debug APK"; exit 1; }
+          echo "resolved applicationId: $PKG"
           WSDIR="${{ github.workspace }}"
           mkdir -p "$WSDIR/screenshots"
 
@@ -469,8 +475,17 @@ jobs:
             fi
 
             if [ "$N" = "1" ]; then
-              # The only launch in the whole job.
-              adb shell am start -n "$PKG/$ACT" || true
+              # The only launch in the whole job. Resolve the launcher component
+              # from the installed package instead of assuming its class name,
+              # and fail loudly: `|| true` here once let the job screenshot the
+              # launcher for every run while still reporting success.
+              CMP="$(timeout 15 adb shell cmd package resolve-activity --brief "$PKG" 2>/dev/null | tail -1 | tr -d '\r')"
+              case "$CMP" in
+                */*) ;;
+                *) echo "ERROR: could not resolve a launcher activity for $PKG (got '$CMP')"; exit 1 ;;
+              esac
+              echo "launching $CMP"
+              adb shell am start -n "$CMP"
               for _ in $(seq 1 30); do
                 timeout 15 adb shell dumpsys window 2>/dev/null | grep -qi "ocus.*shakedetectortest" && break
                 sleep 1
@@ -663,9 +678,16 @@ jobs:
         run: |
           SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
           export PATH="$SDK/platform-tools:$PATH"
-          PKG=com.jpcottin.shakedetectortest.debug
-          ACT=com.jpcottin.shakedetectortest.MainActivity
           APK=app/build/outputs/apk/debug/app-debug.apk
+          ACT=com.jpcottin.shakedetectortest.MainActivity
+          # Read the applicationId out of the APK rather than hardcoding it: a
+          # release packaging block drops the .debug suffix, and `pidof` below
+          # silently reports nothing if the name is wrong.
+          AAPT="$(ls -d "$SDK"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)"
+          [ -n "$AAPT" ] || { echo "ERROR: no aapt2 found under $SDK/build-tools"; exit 1; }
+          PKG="$("$AAPT" dump packagename "$APK")"
+          [ -n "$PKG" ] || { echo "ERROR: could not read applicationId from $APK"; exit 1; }
+          echo "resolved applicationId: $PKG"
           WS="${{ github.workspace }}"
           mkdir -p "$WS/screenshots"
 
@@ -684,7 +706,16 @@ jobs:
 
             if [ "$N" = 1 ]; then
               adb shell settings put global hide_error_dialogs 1 || true
-              android run --apks "$APK" --activity "$ACT" || { echo "android run failed; using adb"; adb install -r "$APK"; adb shell am start -n "$PKG/$ACT" || true; }
+              android run --apks "$APK" --activity "$ACT" || {
+                echo "android run failed; falling back to adb"
+                adb install -r "$APK"
+                CMP="$(timeout 15 adb shell cmd package resolve-activity --brief "$PKG" 2>/dev/null | tail -1 | tr -d '\r')"
+                case "$CMP" in
+                  */*) ;;
+                  *) echo "ERROR: could not resolve a launcher activity for $PKG (got '$CMP')"; exit 1 ;;
+                esac
+                adb shell am start -n "$CMP"
+              }
               for _ in $(seq 1 15); do
                 PID="$(adb shell pidof "$PKG" 2>/dev/null | tr -d '\r')"; [ -n "$PID" ] && break; sleep 1
               done
