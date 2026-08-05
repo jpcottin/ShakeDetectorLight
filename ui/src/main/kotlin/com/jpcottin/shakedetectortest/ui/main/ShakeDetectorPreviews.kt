@@ -9,7 +9,7 @@ import com.jpcottin.shakedetectortest.theme.ShakeDetectorLightTheme
 @Composable
 fun ShakeDetectorIdlePreview() {
   ShakeDetectorLightTheme {
-    ShakeDetectorContent(shakeLevel = ShakeLevel.NONE, acceleration = 9.81f)
+    ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.NONE, acceleration = 9.81f))
   }
 }
 
@@ -17,7 +17,7 @@ fun ShakeDetectorIdlePreview() {
 @Composable
 fun ShakeDetectorSmallShakePreview() {
   ShakeDetectorLightTheme {
-    ShakeDetectorContent(shakeLevel = ShakeLevel.SMALL, acceleration = 13.42f)
+    ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.SMALL, acceleration = 13.42f))
   }
 }
 
@@ -25,7 +25,7 @@ fun ShakeDetectorSmallShakePreview() {
 @Composable
 fun ShakeDetectorBigShakePreview() {
   ShakeDetectorLightTheme {
-    ShakeDetectorContent(shakeLevel = ShakeLevel.BIG, acceleration = 21.37f)
+    ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.BIG, acceleration = 21.37f))
   }
 }
 
@@ -33,6 +33,23 @@ fun ShakeDetectorBigShakePreview() {
 @Composable
 fun ShakeDetectorBigShakeDarkPreview() {
   ShakeDetectorLightTheme {
-    ShakeDetectorContent(shakeLevel = ShakeLevel.BIG, acceleration = 21.37f)
+    ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.BIG, acceleration = 21.37f))
+  }
+}
+
+@Preview(showBackground = true, name = "No accelerometer")
+@Composable
+fun ShakeDetectorNoSensorPreview() {
+  ShakeDetectorLightTheme {
+    ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.NONE, isSensorAvailable = false))
+  }
+}
+
+/** Guards against the shake label clipping at the largest accessibility font scale. */
+@Preview(showBackground = true, name = "Big shake - font scale 2x", fontScale = 2f)
+@Composable
+fun ShakeDetectorLargeFontPreview() {
+  ShakeDetectorLightTheme {
+    ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.BIG, acceleration = 21.37f))
   }
 }

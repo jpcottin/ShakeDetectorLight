@@ -1,10 +1,6 @@
 package com.jpcottin.shakedetectortest.ui.main
 
 import android.content.Context
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -16,61 +12,46 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.jpcottin.shakedetectortest.theme.Pink80
-import com.jpcottin.shakedetectortest.theme.Purple80
-import kotlin.math.sqrt
-import kotlinx.coroutines.delay
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.jpcottin.shakedetectortest.R
 
 /**
- * Stateful screen: listens to the accelerometer, classifies shakes, vibrates on
- * shake level changes and resets the label one second after the last shake.
+ * Stateful screen: observes [ShakeDetectorViewModel] and vibrates whenever the
+ * detected shake level changes to an actual shake.
  */
 @Composable
-fun ShakeDetectorScreen(modifier: Modifier = Modifier) {
-  var shakeLevel by remember { mutableStateOf(ShakeLevel.NONE) }
-  var acceleration by remember { mutableFloatStateOf(0f) }
+fun ShakeDetectorScreen(
+  modifier: Modifier = Modifier,
+  viewModel: ShakeDetectorViewModel =
+    viewModel(factory = ShakeDetectorViewModel.factory(LocalContext.current)),
+) {
+  val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
 
-  AccelerometerEffect { acc ->
-    acceleration = acc
-
-    val newShakeLevel = classifyShake(acc)
-    if (newShakeLevel != ShakeLevel.NONE && newShakeLevel != shakeLevel) {
+  LaunchedEffect(uiState.shakeLevel) {
+    if (uiState.shakeLevel != ShakeLevel.NONE) {
       vibrate(context)
     }
-    shakeLevel = newShakeLevel
   }
 
-  ShakeDetectorContent(shakeLevel = shakeLevel, acceleration = acceleration, modifier = modifier)
-
-  LaunchedEffect(shakeLevel) {
-    if (shakeLevel != ShakeLevel.NONE) {
-      delay(1000)
-      shakeLevel = ShakeLevel.NONE
-    }
-  }
+  ShakeDetectorContent(uiState = uiState, modifier = modifier)
 }
 
 /** Stateless UI, driven directly by previews and UI tests. */
 @Composable
-internal fun ShakeDetectorContent(
-  shakeLevel: ShakeLevel,
-  acceleration: Float,
-  modifier: Modifier = Modifier,
-) {
+internal fun ShakeDetectorContent(uiState: ShakeUiState, modifier: Modifier = Modifier) {
   Column(
     modifier = modifier.fillMaxSize(),
     verticalArrangement = Arrangement.Center,
@@ -78,55 +59,45 @@ internal fun ShakeDetectorContent(
   ) {
     Text(
       text =
-        when (shakeLevel) {
-          ShakeLevel.SMALL -> "Small Shake Detected!"
-          ShakeLevel.BIG -> "Big Shake Detected!"
-          ShakeLevel.NONE -> "Shake your phone!"
+        stringResource(
+          when (uiState.shakeLevel) {
+            ShakeLevel.SMALL -> R.string.shake_small
+            ShakeLevel.BIG -> R.string.shake_big
+            ShakeLevel.NONE -> R.string.shake_prompt
+          }
+        ),
+      color =
+        when (uiState.shakeLevel) {
+          ShakeLevel.SMALL -> MaterialTheme.colorScheme.tertiary
+          ShakeLevel.BIG -> MaterialTheme.colorScheme.primary
+          ShakeLevel.NONE -> MaterialTheme.colorScheme.onBackground
         },
       style =
-        when (shakeLevel) {
-          ShakeLevel.SMALL -> TextStyle(color = Pink80, fontSize = 32.sp)
-          ShakeLevel.BIG -> TextStyle(color = Purple80, fontSize = 40.sp)
+        when (uiState.shakeLevel) {
+          ShakeLevel.SMALL -> MaterialTheme.typography.headlineLarge
+          ShakeLevel.BIG -> MaterialTheme.typography.displaySmall
           ShakeLevel.NONE -> MaterialTheme.typography.headlineMedium
         },
-    )
-    Text(
-      text = "Acceleration: ${"%.2f".format(acceleration)}",
-      style = MaterialTheme.typography.bodyLarge,
-      modifier = Modifier.padding(top = 16.dp),
-    )
-  }
-}
-
-@Composable
-private fun AccelerometerEffect(onAccelerationChanged: (Float) -> Unit) {
-  val context = LocalContext.current
-
-  DisposableEffect(context) {
-    val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    val accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-
-    val sensorEventListener =
-      object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent?) {
-          event?.let {
-            val x = it.values[0]
-            val y = it.values[1]
-            val z = it.values[2]
-            onAccelerationChanged(sqrt(x * x + y * y + z * z))
-          }
-        }
-
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-      }
-
-    sensorManager.registerListener(
-      sensorEventListener,
-      accelerometer,
-      SensorManager.SENSOR_DELAY_NORMAL,
+      textAlign = TextAlign.Center,
+      // Announce shake changes to TalkBack users, who can't see the colour change.
+      modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
     )
 
-    onDispose { sensorManager.unregisterListener(sensorEventListener) }
+    if (uiState.isSensorAvailable) {
+      Text(
+        text = stringResource(R.string.acceleration_label, uiState.acceleration),
+        style = MaterialTheme.typography.bodyLarge,
+        modifier = Modifier.padding(top = 16.dp),
+      )
+    } else {
+      Text(
+        text = stringResource(R.string.sensor_unavailable),
+        style = MaterialTheme.typography.bodyLarge,
+        color = MaterialTheme.colorScheme.error,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.padding(top = 16.dp),
+      )
+    }
   }
 }
 
