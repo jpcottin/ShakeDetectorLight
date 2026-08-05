@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Shake Detector Light</string>
+
+    <string name="shake_prompt">Shake your phone!</string>
+    <string name="shake_small">Small Shake Detected!</string>
+    <string name="shake_big">Big Shake Detected!</string>
+    <string name="acceleration_label">Acceleration: %1$.2f</string>
+    <string name="sensor_unavailable">This device has no accelerometer.</string>
 </resources>
