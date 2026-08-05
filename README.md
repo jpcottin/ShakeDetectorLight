@@ -1,5 +1,7 @@
 # Shake Detector Light
 
+[![CI](https://github.com/jpcottin/ShakeDetectorLight/actions/workflows/ci.yml/badge.svg)](https://github.com/jpcottin/ShakeDetectorLight/actions/workflows/ci.yml)
+
 An Android app that detects when you shake your phone, classifies the shake as
 **small** or **big**, gives haptic feedback (vibration), and shows the live
 accelerometer magnitude on screen.
@@ -204,6 +206,53 @@ sighted user perceives as a colour change. Colours and text sizes come from
 `MaterialTheme.colorScheme` / `typography` rather than hardcoded values, so the
 UI honours dynamic colour on Android 12+ and scales with the user's font-size
 setting.
+
+## Continuous integration
+
+`.github/workflows/ci.yml` runs on every push and pull request to `main`. Every
+job installs the Android CLI from scratch and builds with Lightbuild
+(`ANDROID_CLI_BUILD=true` is set workflow-wide), so CI also acts as a daily
+check that the alpha toolchain still installs and builds cleanly on a stock
+Ubuntu runner.
+
+### Core jobs
+
+| Job | What it does |
+|---|---|
+| **Build + Unit Tests (Lightbuild)** | Builds all modules plus `//app:main:apk:debug` (named explicitly — see the rough edges above), runs the JVM unit tests with `android build test`, and uploads the test results and both APKs. |
+| **Release Build** | Builds `//app:main:apk:release` to guard the R8 configuration, and archives the release APK together with `mapping.txt` — without the mapping file a release stack trace is undecodable. |
+| **Instrumented Tests (API 34, 36)** | Boots emulators with `reactivecircus/android-emulator-runner`, installs the self-instrumenting `androidTest` APK, and runs the Compose UI tests. `am instrument -w` exits 0 even when tests fail, so the job greps the output for the `OK (N tests)` summary line. |
+
+### Experimental jobs
+
+Four additional jobs (all `continue-on-error`, so they never block a merge)
+probe the newest emulator tooling:
+
+| Job | What it does |
+|---|---|
+| **Android CLI experiment** | Drives the whole emulator flow with the CLI: `android sdk install --canary` for the canary emulator and the API 37.0 16 KB-page-size image, `android emulator create` + `start`, and the instrumented tests through the CLI's native runner (`android build test "//ui:androidTest"`) instead of adb + `am instrument`. |
+| **Emulator Preview experiment** | Runs the separate **Android Emulator (Preview)** SDK package (`emulators;latest`, installs under `emulators/latest/`, currently API 37+ only) by launching its binary directly, then runs the instrumented tests on it. |
+| **Emulator Preview experiment multi-run** | Snapshot save/restore of the *live app* on the preview emulator: four boot cycles with snapshots enabled, the app launched only in cycle 1, each cycle shut down gracefully so a snapshot is saved. Later cycles verify the app came back by itself — process alive, window focused, and a non-empty Compose layout tree (`android layout`), since a mostly-static screen can't be judged by screenshot diffing. |
+| **Android CLI experiment multi-run** | The same four-cycle snapshot experiment, but driven entirely by the CLI (`android emulator start`/`stop`, `android run`, `android screen capture`, `android layout`) against the canary emulator — a direct comparison of the CLI tooling against the preview-emulator job. |
+
+The two preview-emulator jobs share their setup (KVM, cmdline-tools, system
+image, AVD, the preview package, and the console auth token) through a local
+composite action, `.github/actions/preview-emulator`.
+
+Notes that came out of building these jobs:
+
+- `android emulator create` is profile-based and cannot pin a system image — it
+  picks `google_apis_playstore`, whose first-boot Play overlays steal window
+  focus and break Espresso. An AVD is just ini files, so the jobs create the
+  profile with the CLI and retarget it at the pinned `google_apis_ps16k` image.
+- `android emulator start` passes neither `-noaudio` nor `-no-window`, so the
+  headless runner needs `libpulse0` and an Xvfb display; it also has no
+  disable-animations equivalent, so the jobs turn animations off via
+  `adb shell settings` for Espresso.
+- The experiments launch the app once and read state through the platform
+  (`pidof`, `dumpsys window`, layout tree) rather than hardcoding component
+  names — the applicationId is read from the APK with `aapt2 dump packagename`,
+  for the reasons described under the Lightbuild rough edges.
 
 ## Getting started
 
