@@ -3,6 +3,16 @@ version: "1.0.0"
 platform: android
 type: application
 
+kotlin:
+  # Declared intent: keep the sample warning-clean. NOTE: verified to be a no-op
+  # in Lightbuild 0.0.10-alpha01 — the key validates but reaches neither the
+  # generated Gradle nor the compiler (a deliberate unused-variable warning still
+  # builds). Kept so it takes effect once Lightbuild wires it up.
+  # `kotlin.jvmTarget` is deliberately absent: the project-level
+  # build.java.version already drives it, and the key fails schema validation
+  # because the YAML parser coerces "17" to an integer before the string check.
+  allWarningsAsErrors: true
+
 dependencies:
   module:
     - //ui

@@ -1017,7 +1017,7 @@ dependencies:
   - androidx.savedstate:savedstate-compose:1.4.0
   - org.jetbrains.kotlin:kotlin-stdlib:2.3.20
 - id: androidx.compose.ui:ui:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     jar:
@@ -1036,7 +1036,7 @@ dependencies:
   - androidx.compose.ui:ui:1.9.5
   - androidx.compose.ui:ui-android:1.9.5
 - id: androidx.compose.ui:ui-android:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     aar:
@@ -1213,7 +1213,7 @@ dependencies:
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2
 - id: androidx.compose.ui:ui-test-junit4:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     jar:
@@ -1232,7 +1232,7 @@ dependencies:
   - androidx.compose.ui:ui-test-junit4:1.9.5
   - androidx.compose.ui:ui-test-junit4-android:1.9.5
 - id: androidx.compose.ui:ui-test-junit4-android:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     aar:
@@ -1264,7 +1264,7 @@ dependencies:
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2
 - id: androidx.compose.ui:ui-test-manifest:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     aar:
@@ -1330,7 +1330,7 @@ dependencies:
   - org.jetbrains.kotlin:kotlin-stdlib:2.3.20
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2
 - id: androidx.compose.ui:ui-tooling:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     jar:
@@ -1349,7 +1349,7 @@ dependencies:
   - androidx.compose.ui:ui-tooling:1.9.5
   - androidx.compose.ui:ui-tooling-android:1.9.5
 - id: androidx.compose.ui:ui-tooling-android:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     aar:
@@ -1418,7 +1418,7 @@ dependencies:
   - androidx.compose.ui:ui:1.9.5
   - org.jetbrains.kotlin:kotlin-stdlib:2.3.20
 - id: androidx.compose.ui:ui-tooling-preview:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     jar:
@@ -1437,7 +1437,7 @@ dependencies:
   - androidx.compose.ui:ui-tooling-preview:1.9.5
   - androidx.compose.ui:ui-tooling-preview-android:1.9.5
 - id: androidx.compose.ui:ui-tooling-preview-android:1.9.5
-  requestedVersion: 1.8.0
+  requestedVersion: 1.9.5
   resolvedVersion: 1.9.5
   artifacts:
     aar:

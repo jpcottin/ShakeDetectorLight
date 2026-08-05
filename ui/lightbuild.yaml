@@ -3,6 +3,16 @@ version: "1.0.0"
 platform: android
 type: library
 
+kotlin:
+  # Declared intent: keep the sample warning-clean. NOTE: verified to be a no-op
+  # in Lightbuild 0.0.10-alpha01 — the key validates but reaches neither the
+  # generated Gradle nor the compiler (a deliberate unused-variable warning still
+  # builds). Kept so it takes effect once Lightbuild wires it up.
+  # `kotlin.jvmTarget` is deliberately absent: the project-level
+  # build.java.version already drives it, and the key fails schema validation
+  # because the YAML parser coerces "17" to an integer before the string check.
+  allWarningsAsErrors: true
+
 dependencies:
   maven:
     - androidx.core:core-ktx:1.18.0
@@ -10,13 +20,13 @@ dependencies:
     - androidx.activity:activity-compose:1.13.0
     - androidx.lifecycle:lifecycle-runtime-compose:2.10.0
     - androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0
-    - androidx.compose.ui:ui:1.8.0
-    - androidx.compose.ui:ui-tooling-preview:1.8.0
+    - androidx.compose.ui:ui:1.9.5
+    - androidx.compose.ui:ui-tooling-preview:1.9.5
     - androidx.compose.material3:material3:1.4.0
     - androidx.navigation3:navigation3-ui:1.0.1
     - androidx.navigation3:navigation3-runtime:1.0.1
     - androidx.lifecycle:lifecycle-viewmodel-navigation3:2.10.0
-    - androidx.compose.ui:ui-tooling:1.8.0
+    - androidx.compose.ui:ui-tooling:1.9.5
 
 android:
   namespace: com.jpcottin.shakedetectortest
@@ -43,5 +53,5 @@ tests:
         - androidx.test.ext:junit:1.3.0
         - androidx.test:runner:1.7.0
         - androidx.test.espresso:espresso-core:3.7.0
-        - androidx.compose.ui:ui-test-junit4:1.8.0
-        - androidx.compose.ui:ui-test-manifest:1.8.0
+        - androidx.compose.ui:ui-test-junit4:1.9.5
+        - androidx.compose.ui:ui-test-manifest:1.9.5
