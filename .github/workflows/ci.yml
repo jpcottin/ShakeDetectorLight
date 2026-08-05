@@ -390,8 +390,11 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # Named explicitly: with a release packaging block declared, a bare
+      # `android build` resolves to //app:buildRelease and never writes
+      # app-debug.apk, which this job installs.
       - name: Build debug APK with Lightbuild
-        run: android build
+        run: android build "//app:main:apk:debug"
 
       - name: Set up Android Emulator Preview
         uses: ./.github/actions/preview-emulator
@@ -612,8 +615,11 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # Named explicitly: with a release packaging block declared, a bare
+      # `android build` resolves to //app:buildRelease and never writes
+      # app-debug.apk, which this job installs.
       - name: Build debug APK with Lightbuild
-        run: android build
+        run: android build "//app:main:apk:debug"
 
       - name: Install canary emulator and API 37.0 ps16k image with the CLI
         run: |
