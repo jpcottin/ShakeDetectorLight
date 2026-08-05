@@ -38,8 +38,13 @@ jobs:
           android --version
           android info
 
+      # Named explicitly: once app/lightbuild.yaml declares a release packaging
+      # block, a bare `android build` resolves to //app:buildRelease and no
+      # debug APK is produced, which would silently empty the upload below.
       - name: Build all modules
-        run: android build
+        run: |
+          android build
+          android build "//app:main:apk:debug"
 
       - name: Run unit tests
         run: android build test
@@ -60,6 +65,9 @@ jobs:
           path: |
             app/build/outputs/apk/debug/app-debug.apk
             ui/build/outputs/apk/androidTest/debug/ui-debug-androidTest.apk
+          # Fail loudly rather than publishing an empty artifact if a target
+          # stops producing its APK.
+          if-no-files-found: error
 
   release-build:
     name: Release Build
@@ -88,6 +96,16 @@ jobs:
         with:
           name: release-apk
           path: app/build/outputs/apk/release/
+
+      # R8 is enabled for release, so the mapping file is the only way to read a
+      # release stack trace. Losing it makes a crash report undecodable.
+      - name: Upload R8 mapping file
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-mapping
+          path: app/build/outputs/mapping/release/
+          if-no-files-found: error
 
   instrumented-tests:
     name: Instrumented Tests (API ${{ matrix.api-level }})

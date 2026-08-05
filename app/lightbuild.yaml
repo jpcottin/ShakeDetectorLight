@@ -20,7 +20,19 @@ android:
   targetSdk:
     version:
       release:
-        apiLevel: 34
+        apiLevel: 36
   applicationId: com.jpcottin.shakedetectortest
   versionCode: 1
   versionName: "1.0"
+  packaging:
+    # NOTE: adding this block flips the target that a bare `android build`
+    # resolves to, from //app:buildDebug to //app:buildRelease. CI therefore
+    # names the debug target explicitly instead of relying on the default.
+    release:
+      # R8 full-mode shrinking/obfuscation for the release APK and bundle.
+      # `includeDefault` pulls in the default keep rules (Compose, AndroidX,
+      # kotlinx.serialization) so the Navigation 3 back stack still serializes.
+      optimization:
+        enable: true
+        keepRules:
+          includeDefault: true
