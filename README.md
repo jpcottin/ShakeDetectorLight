@@ -256,9 +256,21 @@ Notes that came out of building these jobs:
 
 ## Getting started
 
-1. Install the [Android CLI](https://developer.android.com/tools/agents/android-cli):
+1. Install the [Android CLI](https://developer.android.com/tools/agents/android-cli)
+   for your platform:
    ```sh
+   # macOS (Apple Silicon)
    curl -fsSL https://dl.google.com/android/cli/latest/darwin_arm64/install.sh | bash
+
+   # macOS (Intel)
+   curl -fsSL https://dl.google.com/android/cli/latest/darwin_x86_64/install.sh | bash
+
+   # Linux (x86_64)
+   curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
+   ```
+   ```bat
+   :: Windows (x86_64)
+   curl -fsSL https://dl.google.com/android/cli/latest/windows_x86_64/install.cmd -o "%TEMP%\i.cmd" && "%TEMP%\i.cmd"
    ```
 2. Enable Lightbuild support:
    ```sh
