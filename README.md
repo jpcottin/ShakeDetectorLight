@@ -15,13 +15,15 @@ Small Shake Detected!      →  magnitude > 11   (pink, vibrates)
 Big Shake Detected!        →  magnitude > 16   (purple, vibrates)
 ```
 
-| Idle (dark theme, on device) | Small shake | Big shake |
+| Idle | Small shake | Big shake |
 |:---:|:---:|:---:|
 | <img src="docs/idle.png" width="250" alt="Idle state"> | <img src="docs/small-shake.png" width="250" alt="Small shake state"> | <img src="docs/big-shake.png" width="250" alt="Big shake state"> |
 
-The small- and big-shake captures were taken on an emulator while driving the
-virtual accelerometer (`adb emu sensor set acceleration x:y:z`) — a handy way
-to test sensor apps without physically shaking anything.
+All three captures were taken on an emulator while driving the virtual
+accelerometer (`adb emu sensor set acceleration x:y:z`) — a handy way to test
+sensor apps without physically shaking anything. Note that the shake colours
+come from the Material 3 scheme, so with dynamic colour on Android 12+ they
+follow the device wallpaper rather than being fixed pink/purple.
 
 ## Technologies used
 
@@ -34,9 +36,52 @@ testers. Instead of imperative Gradle scripts, the whole build is described by:
 | File | Role |
 |---|---|
 | `project.lightbuild.yaml` | Project name, module list, repositories, Kotlin/Java versions, Lightbuild version |
-| `app/lightbuild.yaml` | Application module: `applicationId`, SDK levels, dependency on `//ui` |
+| `app/lightbuild.yaml` | Application module: `applicationId`, SDK levels, R8 release optimization, dependency on `//ui` |
 | `ui/lightbuild.yaml` | Library module: Maven dependencies, unit/instrumented test configuration |
 | `*/resolved.deps` | Pinned dependency resolution files for reproducible, offline-capable builds |
+
+The full set of keys Lightbuild accepts is described by the JSON schemas bundled
+inside its own jar (`lightbuild.yaml.schema.json` and
+`project.lightbuild.yaml.schema.json`) — handy when the online docs are thin.
+You can also read exactly what your YAML was translated into: Lightbuild writes
+the generated Gradle build to `.lightbuild/gradle/` (gitignored), which is the
+quickest way to confirm a key actually took effect.
+
+#### R8 / release optimization
+
+Release builds are shrunk and obfuscated:
+
+```yaml
+android:
+  packaging:
+    release:
+      optimization:
+        enable: true
+        keepRules:
+          includeDefault: true
+```
+
+`includeDefault` pulls in the default keep rules, which matter here because the
+Navigation 3 back stack is serialized via `kotlinx.serialization`. The effect is
+large for a demo app — **935 KB** release APK against 11.3 MB for debug — and
+`app/build/outputs/mapping/release/mapping.txt` is produced for deobfuscating
+release stack traces (CI archives it).
+
+#### Alpha rough edges found while building this
+
+Two schema-valid keys that currently do nothing, both verified against
+0.0.10-alpha01 by inspecting the generated Gradle and by experiment:
+
+| Key | Behaviour |
+|---|---|
+| `kotlin.allWarningsAsErrors` | Accepted; never reaches the compiler — a deliberate unused-variable warning still builds. Left in the config so it takes effect once implemented. |
+| `kotlin.jvmTarget` | Fails validation as *"integer found, string expected"* whether written `17` or `"17"` — the YAML parser coerces the string to an integer before the schema check. Project-level `build.java.version` works instead. |
+
+And one behavioural surprise worth knowing about: **declaring an
+`android.packaging.release` block changes what a bare `android build` builds**,
+from `//app:buildDebug` to `//app:buildRelease`. Nothing warns you; the debug
+APK simply stops appearing under `app/build/outputs/apk/debug/`. CI names the
+debug target explicitly for that reason.
 
 Behind the scenes Lightbuild converts these files to another build system that
 performs the actual build; you only ever edit the YAML.
@@ -66,39 +111,60 @@ android run --apks=app/build/outputs/apk/debug/app-debug.apk         # deploy
 - **[Jetpack Compose](https://developer.android.com/compose)** — declarative UI toolkit; the whole UI is composables, no XML layouts.
 - **[Material 3](https://developer.android.com/develop/ui/compose/designsystems/material3)** — theming (dynamic color on Android 12+, light/dark themes) and typography.
 - **[Navigation 3](https://developer.android.com/guide/navigation/navigation-3)** — the new Compose-native navigation library (`NavDisplay` + a type-safe, serializable back stack).
-- **[SensorManager](https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion)** — raw `TYPE_ACCELEROMETER` events; the shake magnitude is `sqrt(x² + y² + z²)`. The listener is registered/unregistered with the composable lifecycle via `DisposableEffect`.
+- **[SensorManager](https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion)** — raw `TYPE_ACCELEROMETER` events; the shake magnitude is `sqrt(x² + y² + z²)`. `AccelerometerDataSource` exposes the sensor as a cold `Flow` built with `callbackFlow`, so the listener is registered on collection and unregistered in `awaitClose`.
+- **[ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel) + `StateFlow`** — `ShakeDetectorViewModel` turns the raw stream into a `ShakeUiState`. `stateIn(WhileSubscribed(5_000))` plus `collectAsStateWithLifecycle()` means the accelerometer is only subscribed while the UI is actually visible: backgrounding the app releases the sensor instead of draining the battery. Verified with `adb shell dumpsys sensorservice`, which logs the matching `+`/`−` registration pair.
 - **[Vibrator / VibratorManager](https://developer.android.com/reference/android/os/VibratorManager)** — haptic feedback on shake detection, with API-level-aware fallbacks down to `minSdk 24`.
 - **Edge-to-edge** — `enableEdgeToEdge()` + `safeDrawingPadding()`.
 
 ### Module structure
 
 ```
-app/   → application shell (manifest, applicationId, depends on //ui)
-ui/    → library module with all Compose UI, sensors logic, and tests
+app/   → application shell (manifest, applicationId, R8 config, depends on //ui)
+ui/    → library module with all Compose UI, sensor logic, and tests
 ```
+
+Inside `ui/`, the shake feature follows the standard
+[Android architecture](https://developer.android.com/topic/architecture) split:
+
+```
+AccelerometerDataSource   → SensorManager wrapped as a cold Flow<Float>
+ShakeDetectorViewModel    → Flow → StateFlow<ShakeUiState> (+ pure `reduce`)
+ShakeDetectorScreen       → stateful: collects the ViewModel, fires haptics
+ShakeDetectorContent      → stateless: drives previews and UI tests
+```
+
+`ShakeUiState.reduce()` is a pure, clock-injected function, so the "hold the
+label for a second after the last shake" behaviour is unit tested on the JVM
+rather than by waiting on a real device.
 
 ## Testing
 
 ### Unit tests (`ui/src/test`)
 
-The shake-classification logic is a pure function (`classifyShake` in
-`ShakeLevel.kt`), tested on the JVM without any device:
+All the shake logic is pure, so it is tested on the JVM without any device:
 
 ```sh
 android build test
 ```
 
-`ShakeLevelTest` covers rest/gravity, both thresholds as exclusive bounds, and
-values just above each threshold.
+- `ShakeLevelTest` covers `classifyShake`: rest/gravity, both thresholds as
+  exclusive bounds, and values just above each threshold.
+- `ShakeUiStateTest` covers `ShakeUiState.reduce`: a shake being detected, the
+  label being held while the device settles, the hold expiring back to idle, and
+  a second shake restarting the hold window. Time is injected, so none of these
+  tests sleep.
+
+12 unit tests total.
 
 ### UI tests (`ui/src/androidTest`)
 
 `ShakeDetectorScreenTest` uses the **Compose testing APIs**
 (`createAndroidComposeRule`, `onNodeWithText`) with **AndroidJUnitRunner** to
-verify each UI state renders the right message. The screen is split into a
-stateful wrapper (`ShakeDetectorScreen`) and a stateless
-`ShakeDetectorContent(shakeLevel, acceleration)` so tests can drive every state
-deterministically — no need to physically shake the test device.
+verify each UI state renders the right message, including the no-accelerometer
+fallback. The screen is split into a stateful wrapper (`ShakeDetectorScreen`)
+and a stateless `ShakeDetectorContent(uiState)` so tests can drive every state
+deterministically — no need to physically shake the test device. Assertions read
+their expected text from `strings.xml`, so they don't drift from the UI.
 
 Run them on a connected device/emulator with:
 
@@ -111,8 +177,17 @@ adb shell am instrument -w com.jpcottin.shakedetectortest.test/androidx.test.run
 ### Composable previews
 
 `ShakeDetectorPreviews.kt` provides `@Preview`s for every state (idle, small
-shake, big shake, and dark mode) rendered in Android Studio's preview panel —
-another benefit of the stateless-content split.
+shake, big shake, dark mode, the no-accelerometer fallback, and a 2× font-scale
+variant that catches accessibility clipping) rendered in Android Studio's
+preview panel — another benefit of the stateless-content split.
+
+### Accessibility & theming
+
+The shake label is a `liveRegion`, so TalkBack announces state changes that a
+sighted user perceives as a colour change. Colours and text sizes come from
+`MaterialTheme.colorScheme` / `typography` rather than hardcoded values, so the
+UI honours dynamic colour on Android 12+ and scales with the user's font-size
+setting.
 
 ## Getting started
 
