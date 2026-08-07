@@ -192,6 +192,19 @@ adb install -r ui/build/outputs/apk/androidTest/debug/ui-debug-androidTest.apk
 adb shell am instrument -w com.jpcottin.shakedetectortest.test/androidx.test.runner.AndroidJUnitRunner
 ```
 
+### Journey tests
+
+`docs/journeys/` holds XML journeys — agent-evaluated end-to-end tests where
+each `<action>` is performed against a live device and judged from what is
+actually on screen:
+
+- `shake-journey.xml` — for a physical device; the shaking is real, so an agent
+  runs it interactively (screenshot polling plus the vibrator history as ground
+  truth, since the app fires a 150 ms vibration per detected shake).
+- `shake-journey-emulator.xml` — for an emulator, with the accelerometer driven
+  by `adb emu sensor set acceleration x:y:z`; fully deterministic, and encoded
+  as a plain script step in the **Android CLI experiment** CI job (see below).
+
 ### Composable previews
 
 `ShakeDetectorPreviews.kt` provides `@Preview`s for every state (idle, small
@@ -230,7 +243,7 @@ probe the newest emulator tooling:
 
 | Job | What it does |
 |---|---|
-| **Android CLI experiment** | Drives the whole emulator flow with the CLI: `android sdk install --canary` for the canary emulator and the API 37.0 16 KB-page-size image, `android emulator create` + `start`, and the instrumented tests through the CLI's native runner (`android build test "//ui:androidTest"`) instead of adb + `am instrument`. |
+| **Android CLI experiment** | Drives the whole emulator flow with the CLI: `android sdk install --canary` for the canary emulator and the API 37.0 16 KB-page-size image, `android emulator create` + `start`, and the instrumented tests through the CLI's native runner (`android build test "//ui:androidTest"`) instead of adb + `am instrument`. It then reuses the still-running emulator for the **shake journey**: a deterministic translation of `docs/journeys/shake-journey-emulator.xml` that installs the app with `android run`, drives the virtual accelerometer through the emulator console (`adb emu sensor set acceleration x:y:z` — 13 m/s² for a small shake, 20 for a big one, back to 9.81 for rest), and asserts each expected label via the `android layout` tree, uploading screenshots and layout dumps as evidence. Injected sensor values are constant, so the layout tree stays enumerable — on a physical device the ever-changing acceleration text keeps UiAutomator from idling. |
 | **Emulator Preview experiment** | Runs the separate **Android Emulator (Preview)** SDK package (`emulators;latest`, installs under `emulators/latest/`, currently API 37+ only) by launching its binary directly, then runs the instrumented tests on it. |
 | **Emulator Preview experiment multi-run** | Snapshot save/restore of the *live app* on the preview emulator: four boot cycles with snapshots enabled, the app launched only in cycle 1, each cycle shut down gracefully so a snapshot is saved. Later cycles verify the app came back by itself — process alive, window focused, and a non-empty Compose layout tree (`android layout`), since a mostly-static screen can't be judged by screenshot diffing. |
 | **Android CLI experiment multi-run** | The same four-cycle snapshot experiment, but driven entirely by the CLI (`android emulator start`/`stop`, `android run`, `android screen capture`, `android layout`) against the canary emulator — a direct comparison of the CLI tooling against the preview-emulator job. |

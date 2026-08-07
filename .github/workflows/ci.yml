@@ -247,8 +247,13 @@ jobs:
           Xvfb :99 -screen 0 1280x800x24 &
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
 
+      # The debug APK is named explicitly for the same reason as elsewhere: a
+      # bare `android build` stops producing it once a release packaging block
+      # is declared, and the shake journey below installs it.
       - name: Build with Lightbuild
-        run: android build
+        run: |
+          android build
+          android build "//app:main:apk:debug"
 
       - name: Start emulator with the CLI
         timeout-minutes: 15
@@ -276,6 +281,80 @@ jobs:
 
       - name: Run instrumented tests through the CLI
         run: android build test "//ui:androidTest"
+
+      # Deterministic translation of the agent-evaluated shake journey
+      # (docs/journeys/shake-journey-emulator.xml), reusing
+      # the emulator that just ran the instrumented tests: install the app,
+      # drive the virtual accelerometer through the emulator console
+      # (`adb emu sensor set acceleration x:y:z`), and assert the label for
+      # each state. Thresholds: >11 m/s^2 = small shake, >16 = big, 1s hold
+      # before returning to idle. Labels are read from the layout tree
+      # (`android layout`), which stays enumerable here because an injected
+      # sensor value is constant -- unlike a physical device, where the
+      # ever-changing acceleration text keeps the UI from idling.
+      - name: Run shake journey with injected sensor data
+        run: |
+          set -eu
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export PATH="$SDK/platform-tools:$PATH"
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          ACT=com.jpcottin.shakedetectortest.MainActivity
+          # Read the applicationId out of the APK rather than hardcoding it.
+          AAPT="$(ls -d "$SDK"/build-tools/*/aapt2 2>/dev/null | sort -V | tail -1)"
+          [ -n "$AAPT" ] || { echo "ERROR: no aapt2 found under $SDK/build-tools"; exit 1; }
+          PKG="$("$AAPT" dump packagename "$APK")"
+          [ -n "$PKG" ] || { echo "ERROR: could not read applicationId from $APK"; exit 1; }
+          echo "resolved applicationId: $PKG"
+          mkdir -p journey
+
+          adb shell settings put global hide_error_dialogs 1 || true
+          adb shell input keyevent KEYCODE_WAKEUP || true
+          adb shell wm dismiss-keyguard || true
+          android run --apks "$APK" --activity "$ACT" || {
+            echo "android run failed; falling back to adb"
+            adb install -r "$APK"
+            CMP="$(timeout 15 adb shell cmd package resolve-activity --brief "$PKG" 2>/dev/null | tail -1 | tr -d '\r')"
+            case "$CMP" in
+              */*) ;;
+              *) echo "ERROR: could not resolve a launcher activity for $PKG (got '$CMP')"; exit 1 ;;
+            esac
+            adb shell am start -n "$CMP"
+          }
+
+          # Poll the layout tree until the expected label is on screen.
+          expect() {
+            LABEL="$1"; STEP="$2"
+            for _ in $(seq 1 30); do
+              android layout -o journey/layout-"$STEP".json >/dev/null 2>&1 || true
+              if grep -qF "$LABEL" journey/layout-"$STEP".json 2>/dev/null; then
+                android screen capture -o journey/"$STEP".png || true
+                echo "PASS: '$LABEL'"
+                return 0
+              fi
+              sleep 1
+            done
+            echo "FAIL: expected '$LABEL' on screen (step $STEP)"
+            android screen capture -o journey/"$STEP"-FAIL.png || true
+            head -c 4000 journey/layout-"$STEP".json 2>/dev/null || echo "(no layout dump)"
+            exit 1
+          }
+
+          expect "Shake your phone!" 1-idle
+          adb emu sensor set acceleration 0:13:0
+          expect "Small Shake Detected!" 2-small
+          adb emu sensor set acceleration 0:20:0
+          expect "Big Shake Detected!" 3-big
+          adb emu sensor set acceleration 0:9.81:0
+          expect "Shake your phone!" 4-reset
+          echo "Shake journey PASSED"
+
+      - name: Upload shake journey evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: shake-journey-evidence
+          path: journey/
+          if-no-files-found: warn
 
       - name: Stop emulator
         if: always()
