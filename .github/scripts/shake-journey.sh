@@ -46,6 +46,19 @@ if [ "${1:-}" = "--install" ]; then
   }
 fi
 
+# Not every emulator implements the sensor console commands: the preview
+# package (emulators/latest) answers "KO: not implemented" as of 41.1.9,
+# while the stable SDK and canary emulators accept them. Probe with a
+# harmless rest-value write and skip the journey loudly when unsupported —
+# a misleading FAIL would read as an app regression.
+PROBE="$(adb emu sensor set acceleration 0:9.81:0 2>&1 || true)"
+case "$PROBE" in
+  *KO*|*"not implemented"*)
+    echo "SKIPPED: this emulator does not implement 'sensor set' console commands ($PROBE)"
+    exit 0
+    ;;
+esac
+
 # Poll the layout tree until the expected label is on screen.
 expect() {
   LABEL="$1"; STEP="$2"

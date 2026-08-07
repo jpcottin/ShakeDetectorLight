@@ -266,7 +266,11 @@ values are constant, so the layout tree stays enumerable — on a physical
 device the ever-changing acceleration text keeps UiAutomator from idling. In
 the multi-run jobs the script runs in assert-only mode against the restored
 instance, so it never disturbs the launched-once premise of the snapshot
-experiment.
+experiment. Not every emulator can run it: the preview package
+(`emulators/latest`) answers `KO: not implemented` to `sensor set` console
+commands (the stable SDK and canary emulators accept them), so the script
+probes first and skips loudly rather than failing — a finding in itself for
+the preview-emulator experiments.
 
 Notes that came out of building these jobs:
 
