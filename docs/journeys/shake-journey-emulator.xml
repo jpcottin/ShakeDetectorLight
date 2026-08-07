@@ -1,0 +1,21 @@
+<journey name="Shake Detection (Emulator, injected sensor)">
+  <description>
+    End-to-end shake detection on an emulator, driving the virtual accelerometer
+    with "adb emu sensor set acceleration x:y:z" instead of physical shaking.
+    Magnitude thresholds: SMALL > 11 m/s^2, BIG > 16 m/s^2, hold 1s.
+  </description>
+  <actions>
+    <action>
+      Verify that the app shows "Shake your phone!" and an "Acceleration:" reading near 9.8 (virtual device at rest)
+    </action>
+    <action>
+      Set the virtual accelerometer to magnitude ~13 m/s^2 and verify that the label changes to "Small Shake Detected!"
+    </action>
+    <action>
+      Set the virtual accelerometer to magnitude ~20 m/s^2 and verify that the label changes to "Big Shake Detected!"
+    </action>
+    <action>
+      Reset the virtual accelerometer to rest (~9.8 m/s^2), wait over 1 second, and verify that the label returns to "Shake your phone!"
+    </action>
+  </actions>
+</journey>

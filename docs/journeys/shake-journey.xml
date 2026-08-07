@@ -1,0 +1,17 @@
+<journey name="Shake Detection">
+  <description>
+    Verifies the shake-detector UI on a physical device: idle state, live
+    accelerometer reading, physical shake recognition, and return to idle.
+  </description>
+  <actions>
+    <action>
+      Verify that the app shows "Shake your phone!" and an "Acceleration:" reading near 9.8 (device at rest)
+    </action>
+    <action>
+      While the phone is being physically shaken, verify that the label changes to "Small Shake Detected!" or "Big Shake Detected!"
+    </action>
+    <action>
+      Verify that the label returns to "Shake your phone!" within a few seconds after shaking stops
+    </action>
+  </actions>
+</journey>

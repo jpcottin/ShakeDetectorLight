@@ -138,13 +138,21 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # The debug APK is named explicitly for the same reason as elsewhere: a
+      # bare `android build` stops producing it once a release packaging block
+      # is declared, and the shake journey below installs it.
       - name: Build test APK with Lightbuild
-        run: android build
+        run: |
+          android build
+          android build "//app:main:apk:debug"
 
       # The androidTest APK is self-instrumenting (library module), so only it
       # needs to be installed. `am instrument -w` exits 0 even when tests fail,
       # hence the explicit check for the "OK (N tests)" summary line.
-      - name: Run instrumented tests
+      # The shake journey (.github/scripts/shake-journey.sh) then reuses the
+      # booted emulator; it is a blocking check here, unlike in the
+      # experimental jobs.
+      - name: Run instrumented tests and shake journey
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: ${{ matrix.api-level }}
@@ -158,6 +166,15 @@ jobs:
             adb install -r ui/build/outputs/apk/androidTest/debug/ui-debug-androidTest.apk
             adb shell am instrument -w com.jpcottin.shakedetectortest.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee instrument_output.txt
             grep -q "OK (" instrument_output.txt
+            sh .github/scripts/shake-journey.sh journey --install app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload shake journey evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: shake-journey-evidence-api-${{ matrix.api-level }}
+          path: journey/
+          if-no-files-found: warn
 
       - name: Upload instrumentation output
         if: always()
@@ -247,8 +264,13 @@ jobs:
           Xvfb :99 -screen 0 1280x800x24 &
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
 
+      # The debug APK is named explicitly for the same reason as elsewhere: a
+      # bare `android build` stops producing it once a release packaging block
+      # is declared, and the shake journey below installs it.
       - name: Build with Lightbuild
-        run: android build
+        run: |
+          android build
+          android build "//app:main:apk:debug"
 
       - name: Start emulator with the CLI
         timeout-minutes: 15
@@ -268,6 +290,9 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
+          # A guest crash/ANR dialog (e.g. a launcher ANR on a loaded runner)
+          # steals window focus and once broke the shake journey's assertions.
+          adb shell settings put global hide_error_dialogs 1 || true
           adb logcat -v time > "${{ github.workspace }}/emulator_logcat.txt" &
 
       - name: Dump emulator.log on failure
@@ -276,6 +301,23 @@ jobs:
 
       - name: Run instrumented tests through the CLI
         run: android build test "//ui:androidTest"
+
+      # The shake journey (.github/scripts/shake-journey.sh, a deterministic
+      # translation of docs/journeys/shake-journey-emulator.xml) reuses the
+      # emulator that just ran the instrumented tests.
+      - name: Run shake journey with injected sensor data
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export PATH="$SDK/platform-tools:$PATH"
+          sh .github/scripts/shake-journey.sh journey --install app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload shake journey evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: shake-journey-evidence-cli-experiment
+          path: journey/
+          if-no-files-found: warn
 
       - name: Stop emulator
         if: always()
@@ -306,8 +348,13 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # The debug APK is named explicitly for the same reason as elsewhere: a
+      # bare `android build` stops producing it once a release packaging block
+      # is declared, and the shake journey below installs it.
       - name: Build with Lightbuild
-        run: android build
+        run: |
+          android build
+          android build "//app:main:apk:debug"
 
       # Shared setup: KVM, cmdline-tools, ps16k image + AVD, the preview
       # emulator package, libpulse, and the console auth token.
@@ -343,6 +390,9 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
+          # A guest crash/ANR dialog (e.g. a launcher ANR on a loaded runner)
+          # steals window focus and once broke the shake journey's assertions.
+          adb shell settings put global hide_error_dialogs 1 || true
           adb logcat -v time > "${{ github.workspace }}/emulator_logcat.txt" &
           kill "$TAIL_PID" 2>/dev/null || true
 
@@ -353,6 +403,23 @@ jobs:
           adb install -r ui/build/outputs/apk/androidTest/debug/ui-debug-androidTest.apk
           adb shell am instrument -w com.jpcottin.shakedetectortest.test/androidx.test.runner.AndroidJUnitRunner 2>&1 | tee instrument_output.txt
           grep -q "OK (" instrument_output.txt
+
+      # The shake journey (.github/scripts/shake-journey.sh) reuses the booted
+      # preview emulator — the same end-to-end check as in the other emulator
+      # jobs, here as a data point for the preview emulator package.
+      - name: Run shake journey with injected sensor data
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          export PATH="$SDK/platform-tools:$PATH"
+          sh .github/scripts/shake-journey.sh journey --install app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload shake journey evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: shake-journey-evidence-preview
+          path: journey/
+          if-no-files-found: warn
 
       - name: Stop emulator
         if: always()
@@ -528,6 +595,17 @@ jobs:
               echo "RUN $N rendering: YES (focused window, $NODES layout nodes)"
             else
               echo "RUN $N rendering: NO (pid='${APP_PID:-}' focus=$FOCUS nodes=$NODES)"
+            fi
+            # Use the app before the snapshot is saved: run the shake journey
+            # (.github/scripts/shake-journey.sh) against the already-running
+            # instance — no reinstall/relaunch, so the "app survived restore"
+            # measurement above stays intact and the snapshot captures an app
+            # with real interaction history. Ends at the idle label, so the
+            # exit/entry screenshot comparison across cycles still holds.
+            if [ -n "${APP_PID:-}" ]; then
+              sh .github/scripts/shake-journey.sh "$WSDIR/screenshots/journey-run$N" || { echo "RUN $N shake journey FAILED"; exit 1; }
+            else
+              echo "RUN $N: skipping shake journey (app process not running)"
             fi
             # Exit screenshot last: the frame the next run's entry screenshot
             # should match.
@@ -748,6 +826,17 @@ jobs:
               echo "CYCLE $N rendering: YES ($NODES layout nodes)"
             else
               echo "CYCLE $N rendering: NO (pid='${PID:-}' nodes=$NODES)"
+            fi
+            # Use the app before the snapshot is saved: run the shake journey
+            # (.github/scripts/shake-journey.sh) against the already-running
+            # instance — no reinstall/relaunch, so the "app survived restore"
+            # measurement above stays intact and the snapshot captures an app
+            # with real interaction history. Ends at the idle label, so the
+            # entry screenshot comparison across cycles still holds.
+            if [ -n "${PID:-}" ]; then
+              sh .github/scripts/shake-journey.sh "$WS/screenshots/journey-cycle$N" || { echo "CYCLE $N shake journey FAILED"; exit 1; }
+            else
+              echo "CYCLE $N: skipping shake journey (app process not running)"
             fi
             android screen capture -o "$WS/screenshots/cycle$N.png" || true
             adb logcat -d -t 500 > "$WS/logcat_cycle$N.txt" 2>/dev/null || true
