@@ -318,3 +318,14 @@ Notes that came out of building these jobs:
 
 The project also opens in recent Android Studio preview builds with Lightbuild
 support.
+
+## App icon
+
+The launcher icon is a shaking Android robot: the bugdroid head tilted
+mid-shake with motion arcs on both sides, drawn as adaptive-icon vector
+drawables (with a monochrome layer for Android 13+ themed icons) plus
+regenerated legacy webps for API 24–25.
+
+The Android robot is reproduced or modified from work created and shared by
+Google and used according to terms described in the
+[Creative Commons 3.0 Attribution License](https://creativecommons.org/licenses/by/3.0/).
