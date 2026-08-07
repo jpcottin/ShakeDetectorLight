@@ -290,6 +290,9 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
+          # A guest crash/ANR dialog (e.g. a launcher ANR on a loaded runner)
+          # steals window focus and once broke the shake journey's assertions.
+          adb shell settings put global hide_error_dialogs 1 || true
           adb logcat -v time > "${{ github.workspace }}/emulator_logcat.txt" &
 
       - name: Dump emulator.log on failure
@@ -387,6 +390,9 @@ jobs:
           adb shell settings put global window_animation_scale 0
           adb shell settings put global transition_animation_scale 0
           adb shell settings put global animator_duration_scale 0
+          # A guest crash/ANR dialog (e.g. a launcher ANR on a loaded runner)
+          # steals window focus and once broke the shake journey's assertions.
+          adb shell settings put global hide_error_dialogs 1 || true
           adb logcat -v time > "${{ github.workspace }}/emulator_logcat.txt" &
           kill "$TAIL_PID" 2>/dev/null || true
 

@@ -59,6 +59,18 @@ case "$PROBE" in
     ;;
 esac
 
+# A crash/ANR system dialog (e.g. "Pixel Launcher isn't responding") steals
+# the window and hides the app; hide_error_dialogs only prevents future
+# dialogs, not one already on screen. Tap its close button if present.
+dismiss_error_dialog() {
+  TAP="$(grep -o '"center":"\[[0-9,]*\]","resource-id":"aerr_close"' "$1" 2>/dev/null | head -1 | grep -o '[0-9][0-9,]*' | head -1 || true)"
+  [ -n "$TAP" ] || return 0
+  X="${TAP%,*}"; Y="${TAP#*,}"
+  echo "dismissing system error dialog (tap $X $Y)"
+  adb shell input tap "$X" "$Y" || true
+  sleep 2
+}
+
 # Poll the layout tree until the expected label is on screen.
 expect() {
   LABEL="$1"; STEP="$2"
@@ -69,6 +81,7 @@ expect() {
       echo "PASS: '$LABEL'"
       return 0
     fi
+    dismiss_error_dialog "$EVIDENCE/layout-$STEP.json"
     sleep 1
   done
   echo "FAIL: expected '$LABEL' on screen (step $STEP)"
