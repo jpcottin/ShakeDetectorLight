@@ -15,25 +15,25 @@ kotlin:
 
 dependencies:
   maven:
-    - androidx.core:core-ktx:1.18.0
-    - androidx.lifecycle:lifecycle-runtime-ktx:2.10.0
+    - androidx.core:core-ktx:1.19.0
+    - androidx.lifecycle:lifecycle-runtime-ktx:2.11.0
     - androidx.activity:activity-compose:1.13.0
-    - androidx.lifecycle:lifecycle-runtime-compose:2.10.0
-    - androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0
-    - androidx.compose.ui:ui:1.9.5
-    - androidx.compose.ui:ui-tooling-preview:1.9.5
+    - androidx.lifecycle:lifecycle-runtime-compose:2.11.0
+    - androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0
+    - androidx.compose.ui:ui:1.11.4
+    - androidx.compose.ui:ui-tooling-preview:1.11.4
     - androidx.compose.material3:material3:1.4.0
-    - androidx.navigation3:navigation3-ui:1.0.1
-    - androidx.navigation3:navigation3-runtime:1.0.1
-    - androidx.lifecycle:lifecycle-viewmodel-navigation3:2.10.0
-    - androidx.compose.ui:ui-tooling:1.9.5
+    - androidx.navigation3:navigation3-ui:1.1.5
+    - androidx.navigation3:navigation3-runtime:1.1.5
+    - androidx.lifecycle:lifecycle-viewmodel-navigation3:2.11.0
+    - androidx.compose.ui:ui-tooling:1.11.4
 
 android:
   namespace: com.jpcottin.shakedetectortest
   compileSdk:
     version:
       release:
-        apiLevel: 36
+        apiLevel: 37
   minSdk:
     version:
       release:
@@ -44,7 +44,7 @@ tests:
     dependencies:
       maven:
         - junit:junit:4.13.2
-        - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2
+        - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
   androidTest:
     runner: androidx.test.runner.AndroidJUnitRunner
     dependencies:
@@ -53,5 +53,5 @@ tests:
         - androidx.test.ext:junit:1.3.0
         - androidx.test:runner:1.7.0
         - androidx.test.espresso:espresso-core:3.7.0
-        - androidx.compose.ui:ui-test-junit4:1.9.5
-        - androidx.compose.ui:ui-test-manifest:1.9.5
+        - androidx.compose.ui:ui-test-junit4:1.11.4
+        - androidx.compose.ui:ui-test-manifest:1.11.4

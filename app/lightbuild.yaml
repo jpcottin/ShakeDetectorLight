@@ -22,7 +22,7 @@ android:
   compileSdk:
     version:
       release:
-        apiLevel: 36
+        apiLevel: 37
   minSdk:
     version:
       release:
