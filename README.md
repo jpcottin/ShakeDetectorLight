@@ -82,15 +82,37 @@ Two schema-valid keys that currently do nothing, both verified against
 Two behavioural surprises, both triggered by simply declaring an
 `android.packaging.release` block and neither warned about:
 
-1. **It changes what a bare `android build` builds**, from `//app:buildDebug`
-   to `//app:buildRelease`. The debug APK stops appearing under
-   `app/build/outputs/apk/debug/`. CI names the debug target explicitly for
-   that reason.
+1. **It used to change what a bare `android build` builds**, from
+   `//app:buildDebug` to `//app:buildRelease`, so the debug APK stopped
+   appearing under `app/build/outputs/apk/debug/`. Since Android CLI
+   1.0.16261425 the story is different but no better: a bare `android build`
+   builds *nothing* — it prints the command's usage and exits 0, so a CI step
+   that relies on it silently does no work. `android build "//app"` (an alias
+   for `//app:main:apk:debug`) builds the debug APK regardless of the packaging
+   block. CI names the debug target explicitly either way.
 2. **It drops the `.debug` applicationId suffix from debug builds.** The debug
    applicationId goes from `com.jpcottin.shakedetectortest.debug` back to
    `com.jpcottin.shakedetectortest`, so debug and release builds can no longer
    be installed side by side. Lightbuild exposes no `applicationIdSuffix` key,
    so this cannot currently be configured back.
+
+#### Discovering targets
+
+`android build query "//..."` lists every target with its command and a
+description (it returned "No targets found" on CLIs before 1.0.16261425):
+
+| Target | Builds |
+|---|---|
+| `//app`, `//app:main:apk`, `//app:main:apk:debug` | Debug APK |
+| `//app:main:apk:release` | Release APK (R8) |
+| `//app:main:bundle`, `//app:main:bundle:release`, `//app:main:bundle:debug` | App bundles — note the bare bundle target is the *release* one, unlike the bare APK target |
+| `//ui`, `//ui:main:aar`, `//ui:main:aar:release` | Release AAR |
+| `//ui:test`, `//ui:androidTest` | Unit / instrumented tests (`android build test <target>` runs them) |
+
+Wildcards only work for `query`: `android build "//..."` fails with *"Target
+//... not found"*, although the error helpfully lists every valid target.
+`android describe`, the CLI's project-metadata command, does not understand
+Lightbuild projects at all (*"gradlew not found"*).
 
 The second one is easy to miss, because a hardcoded `adb shell am start -n
 <pkg>/<activity>` then fails with *"Activity class does not exist"* while any
@@ -117,7 +139,8 @@ The [Android CLI](https://developer.android.com/tools/agents/android-cli)
 
 ```sh
 android create empty-activity-lightbuild --name="..." --output=...   # scaffold
-android build                # build all modules
+android build query "//..."  # list build targets
+android build "//app"        # build the debug APK (and //ui, its dependency)
 android build test           # run unit tests
 android build clean          # clean outputs and caches
 android run --apks=app/build/outputs/apk/debug/app-debug.apk         # deploy
@@ -187,7 +210,7 @@ their expected text from `strings.xml`, so they don't drift from the UI.
 Run them on a connected device/emulator with:
 
 ```sh
-android build                # assembles ui-debug-androidTest.apk
+android build "//ui:androidTest"   # assembles ui-debug-androidTest.apk
 adb install -r ui/build/outputs/apk/androidTest/debug/ui-debug-androidTest.apk
 adb shell am instrument -w com.jpcottin.shakedetectortest.test/androidx.test.runner.AndroidJUnitRunner
 ```
@@ -235,7 +258,7 @@ Ubuntu runner.
 
 | Job | What it does |
 |---|---|
-| **Build + Unit Tests (Lightbuild)** | Builds all modules plus `//app:main:apk:debug` (named explicitly — see the rough edges above), runs the JVM unit tests with `android build test`, and uploads the test results and both APKs. |
+| **Build + Unit Tests (Lightbuild)** | Builds `//ui`, `//ui:androidTest` and `//app:main:apk:debug` (every target named explicitly — see the rough edges above), runs the JVM unit tests with `android build test`, and uploads the test results and both APKs. |
 | **Release Build** | Builds `//app:main:apk:release` to guard the R8 configuration, and archives the release APK together with `mapping.txt` — without the mapping file a release stack trace is undecodable. |
 | **Instrumented Tests (API 34, 36)** | Boots emulators with `reactivecircus/android-emulator-runner`, installs the self-instrumenting `androidTest` APK, and runs the Compose UI tests. `am instrument -w` exits 0 even when tests fail, so the job greps the output for the `OK (N tests)` summary line. The **shake journey** then reuses the booted emulator as a blocking end-to-end check (sensor → detection → UI), giving the journey coverage on API 34 and 36 alongside the experimental jobs' API 37. |
 
@@ -311,7 +334,7 @@ Notes that came out of building these jobs:
    ```
 3. Build, test, and deploy:
    ```sh
-   android build
+   android build "//app"
    android build test
    android run --apks=app/build/outputs/apk/debug/app-debug.apk
    ```

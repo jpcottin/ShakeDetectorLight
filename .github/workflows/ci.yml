@@ -38,12 +38,14 @@ jobs:
           android --version
           android info
 
-      # Named explicitly: once app/lightbuild.yaml declares a release packaging
-      # block, a bare `android build` resolves to //app:buildRelease and no
-      # debug APK is produced, which would silently empty the upload below.
+      # Named explicitly: a bare `android build` is a no-op on current CLIs (it
+      # prints usage and exits 0) and on older ones resolved to the release
+      # APK once app/lightbuild.yaml declared a release packaging block; either
+      # way the debug APK the upload below expects would silently go missing.
       - name: Build all modules
         run: |
-          android build
+          android build "//ui"
+          android build "//ui:androidTest"
           android build "//app:main:apk:debug"
 
       - name: Run unit tests
@@ -138,12 +140,13 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # The debug APK is named explicitly for the same reason as elsewhere: a
-      # bare `android build` stops producing it once a release packaging block
-      # is declared, and the shake journey below installs it.
+      # Both APKs are named explicitly: a bare `android build` is a no-op on
+      # current CLIs, and only the //ui:androidTest target writes the
+      # instrumentation APK installed below (the shake journey installs the
+      # debug APK).
       - name: Build test APK with Lightbuild
         run: |
-          android build
+          android build "//ui:androidTest"
           android build "//app:main:apk:debug"
 
       # The androidTest APK is self-instrumenting (library module), so only it
@@ -265,12 +268,10 @@ jobs:
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
 
       # The debug APK is named explicitly for the same reason as elsewhere: a
-      # bare `android build` stops producing it once a release packaging block
-      # is declared, and the shake journey below installs it.
+      # bare `android build` is a no-op on current CLIs, and the shake journey
+      # below installs the debug APK.
       - name: Build with Lightbuild
-        run: |
-          android build
-          android build "//app:main:apk:debug"
+        run: android build "//app:main:apk:debug"
 
       - name: Start emulator with the CLI
         timeout-minutes: 15
@@ -348,12 +349,13 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # The debug APK is named explicitly for the same reason as elsewhere: a
-      # bare `android build` stops producing it once a release packaging block
-      # is declared, and the shake journey below installs it.
+      # Both APKs are named explicitly: a bare `android build` is a no-op on
+      # current CLIs, and only the //ui:androidTest target writes the
+      # instrumentation APK installed below (the shake journey installs the
+      # debug APK).
       - name: Build with Lightbuild
         run: |
-          android build
+          android build "//ui:androidTest"
           android build "//app:main:apk:debug"
 
       # Shared setup: KVM, cmdline-tools, ps16k image + AVD, the preview
@@ -457,9 +459,9 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Named explicitly: with a release packaging block declared, a bare
-      # `android build` resolves to //app:buildRelease and never writes
-      # app-debug.apk, which this job installs.
+      # Named explicitly: a bare `android build` builds nothing on current CLIs
+      # (and resolved to the release APK on older ones), so app-debug.apk, which
+      # this job installs, would never be written.
       - name: Build debug APK with Lightbuild
         run: android build "//app:main:apk:debug"
 
@@ -708,9 +710,9 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Named explicitly: with a release packaging block declared, a bare
-      # `android build` resolves to //app:buildRelease and never writes
-      # app-debug.apk, which this job installs.
+      # Named explicitly: a bare `android build` builds nothing on current CLIs
+      # (and resolved to the release APK on older ones), so app-debug.apk, which
+      # this job installs, would never be written.
       - name: Build debug APK with Lightbuild
         run: android build "//app:main:apk:debug"
 
