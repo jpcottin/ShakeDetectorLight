@@ -114,6 +114,20 @@ Wildcards only work for `query`: `android build "//..."` fails with *"Target
 `android describe`, the CLI's project-metadata command, does not understand
 Lightbuild projects at all (*"gradlew not found"*).
 
+#### The CLI always exits 0
+
+The biggest trap so far: **`android build` returns exit code 0 whatever
+happened.** A compile error, a failing unit test under `android build test`,
+a target that does not exist, and the bare no-op above all print Lightbuild's
+*"BUILD FAILED"* / *"Error: Lightbuild build failed with exit code 1"* and
+then exit 0 (verified on CLI 1.0.16261425). In CI that means a build step can
+never go red on its own: a transient Maven outage broke the debug build in one
+job here, the step stayed green, and the failure only surfaced two steps later
+as `aapt2` complaining that `app-debug.apk` did not exist. Every CI build now
+goes through `.github/scripts/android-build.sh`, a five-line wrapper that
+tees the output and fails on a reported failure or a missing *"BUILD
+SUCCESS"* line. Do the same in any script that relies on the exit code.
+
 The second one is easy to miss, because a hardcoded `adb shell am start -n
 <pkg>/<activity>` then fails with *"Activity class does not exist"* while any
 `|| true` around it keeps the job green. CI now reads the applicationId out of
@@ -258,7 +272,7 @@ Ubuntu runner.
 
 | Job | What it does |
 |---|---|
-| **Build + Unit Tests (Lightbuild)** | Builds `//ui`, `//ui:androidTest` and `//app:main:apk:debug` (every target named explicitly — see the rough edges above), runs the JVM unit tests with `android build test`, and uploads the test results and both APKs. |
+| **Build + Unit Tests (Lightbuild)** | Builds `//ui`, `//ui:androidTest` and `//app:main:apk:debug` (every target named explicitly, and every build through the exit-code wrapper — see the rough edges above), runs the JVM unit tests with `android build test`, and uploads the test results and both APKs. |
 | **Release Build** | Builds `//app:main:apk:release` to guard the R8 configuration, and archives the release APK together with `mapping.txt` — without the mapping file a release stack trace is undecodable. |
 | **Instrumented Tests (API 34, 36)** | Boots emulators with `reactivecircus/android-emulator-runner`, installs the self-instrumenting `androidTest` APK, and runs the Compose UI tests. `am instrument -w` exits 0 even when tests fail, so the job greps the output for the `OK (N tests)` summary line. The **shake journey** then reuses the booted emulator as a blocking end-to-end check (sensor → detection → UI), giving the journey coverage on API 34 and 36 alongside the experimental jobs' API 37. |
 
@@ -275,7 +289,7 @@ probe the newest emulator tooling:
 | **Android CLI experiment multi-run** | The same four-cycle snapshot experiment, but driven entirely by the CLI (`android emulator start`/`stop`, `android run`, `android screen capture`, `android layout`) against the canary emulator — a direct comparison of the CLI tooling against the preview-emulator job. Also runs the **shake journey** in every cycle before the snapshot save. |
 
 The two preview-emulator jobs share their setup (KVM, cmdline-tools, system
-image, AVD, the preview package, and the console auth token) through a local
+image, AVD, and the preview package) through a local
 composite action, `.github/actions/preview-emulator`.
 
 All the emulator jobs run the same shake journey through one shared script,
