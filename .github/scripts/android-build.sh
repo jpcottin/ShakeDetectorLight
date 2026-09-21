@@ -14,10 +14,18 @@ set -u
 LOG="$(mktemp)"
 android build "$@" 2>&1 | tee "$LOG"
 
-if grep -qE 'BUILD FAILED|Lightbuild build failed|Fatal: Build Failed' "$LOG" \
-   || ! grep -q 'BUILD SUCCESS' "$LOG"; then
+# With Lightbuild 0.0.20-alpha01 the CLI runs a target-less `build` before
+# `test` (and `query`), which Lightbuild rejects with "Target is required for
+# command build" / "Fatal: Build Failed" before the real invocation starts.
+# Every Lightbuild invocation opens with the "Lightbuild is experimental"
+# banner, so only the output after the last banner decides the verdict.
+RESULT="$(mktemp)"
+awk '/Lightbuild is experimental/ { buf = "" } { buf = buf $0 "\n" } END { printf "%s", buf }' "$LOG" > "$RESULT"
+
+if grep -qE 'BUILD FAILED|Lightbuild build failed|Fatal: Build Failed' "$RESULT" \
+   || ! grep -q 'BUILD SUCCESS' "$RESULT"; then
   echo "ERROR: android build $*: Lightbuild reported a failure but the CLI exited 0" >&2
-  rm -f "$LOG"
+  rm -f "$LOG" "$RESULT"
   exit 1
 fi
-rm -f "$LOG"
+rm -f "$LOG" "$RESULT"
