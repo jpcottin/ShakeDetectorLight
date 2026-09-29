@@ -40,7 +40,7 @@ testers. Instead of imperative Gradle scripts, the whole build is described by:
 | `project.lightbuild.yaml` | Project name, module list, repositories, Kotlin/Java versions, Lightbuild version |
 | `app/lightbuild.yaml` | Application module: `applicationId`, SDK levels, R8 release optimization, dependency on `//ui` (module dependencies keep the `//` prefix; build targets no longer do) |
 | `ui/lightbuild.yaml` | Library module: Maven dependencies, unit/instrumented test configuration |
-| `*/resolved.deps` | Pinned dependency resolution files for reproducible, offline-capable builds |
+| `*/resolved.deps` | Pinned dependency resolution files for reproducible, offline-capable builds (regenerate with `android build resolve` — see below) |
 
 The full set of keys Lightbuild accepts is described by the JSON schemas bundled
 inside its own jar (`lightbuild.yaml.schema.json` and
@@ -68,7 +68,7 @@ android:
 
 `includeDefault` pulls in the default keep rules, which matter here because the
 Navigation 3 back stack is serialized via `kotlinx.serialization`. The effect is
-large for a demo app — **935 KB** release APK against 11.3 MB for debug — and
+large for a demo app — **961 KB** release APK against 21.3 MB for debug — and
 `app/build/outputs/mapping/release/mapping.txt` is produced for deobfuscating
 release stack traces (CI archives it).
 
@@ -100,12 +100,13 @@ to 0.0.20-alpha01 broke three things at once:
    required for command test"*; unit tests are `android build test
    "ui:hostTest"`.
 
-One regression comes with it: on CLI 1.0.16261425, `android build test` and
-`android build query` first run a target-less `build`, which the new Lightbuild
-rejects. Both commands therefore print *"Fatal: Build Failed … Target is
+One regression comes with it: `android build test`, `android build query` and
+`android build resolve` first run a target-less `build`, which the new
+Lightbuild rejects. They therefore print *"Fatal: Build Failed … Target is
 required for command build"* **before** doing their real work and succeeding.
-It is noise, but any script that greps the output for failures (like the CI
-wrapper below) has to ignore it.
+On CLI 1.0.16261425 that was only noise for anything grepping the output; since
+CLI 1.0.16457483 it also decides the exit code (see *Exit codes you cannot
+trust* below).
 
 Two behavioural surprises, both triggered by simply declaring an
 `android.packaging.release` block and neither warned about:
@@ -115,8 +116,9 @@ Two behavioural surprises, both triggered by simply declaring an
    debug APK stopped
    appearing under `app/build/outputs/apk/debug/`. Since Android CLI
    1.0.16261425 the story is different but no better: a bare `android build`
-   builds *nothing* — it prints the command's usage and exits 0, so a CI step
-   that relies on it silently does no work. `android build "app"` (an alias
+   builds *nothing* — it prints the command's usage and exits 0 (still the
+   case on 1.0.16457483), so a CI step that relies on it silently does no
+   work. `android build "app"` (an alias
    for `app:app-debug.apk`) builds the debug APK regardless of the packaging
    block. CI names the debug target explicitly either way.
 2. **It drops the `.debug` applicationId suffix from debug builds.** The debug
@@ -146,23 +148,65 @@ the build had to move. Wildcards now work for building too: `android build
 found"*). `android describe`, the CLI's project-metadata command, does not understand
 Lightbuild projects at all (*"gradlew not found"*).
 
-#### The CLI always exits 0
+#### Exit codes you cannot trust
 
-The biggest trap so far: **`android build` returns exit code 0 whatever
-happened.** A compile error, a failing unit test under `android build test`,
-a target that does not exist, and the bare no-op above all print Lightbuild's
-*"BUILD FAILED"* / *"Error: Lightbuild build failed with exit code 1"* and
-then exit 0 (verified on CLI 1.0.16261425). In CI that means a build step can
-never go red on its own: a transient Maven outage broke the debug build in one
-job here, the step stayed green, and the failure only surfaced two steps later
-as `aapt2` complaining that `app-debug.apk` did not exist. Every CI build now
-goes through `.github/scripts/android-build.sh`, a small wrapper that tees the
-output and fails on a reported failure or a missing *"BUILD SUCCESS"* line. It
-only looks at the output after the last *"Lightbuild is experimental"* banner,
-which skips the spurious pre-flight failure described in the migration notes
-above. Do the same in any script that relies on the exit code.
+The biggest trap so far is the exit code of `android build`, and it has
+changed shape between CLI releases without ever becoming reliable:
 
-The second one is easy to miss, because a hardcoded `adb shell am start -n
+| Command | CLI 1.0.16261425 | CLI 1.0.16457483 |
+|---|---|---|
+| `android build "app"`, build succeeds | 0 | 0 |
+| `android build "nope:doesnotexist"` | 0 | **1** (fixed) |
+| bare `android build` (prints usage, builds nothing) | 0 | 0 |
+| `android build query "..."`, targets listed | 0 | **1** |
+| `android build test "ui:hostTest"`, all tests pass | 0 | **1** |
+| `android build test "ui:hostTest"`, one test fails | 0 | 1 |
+| `android build resolve`, lock files written | — | **1** |
+
+Up to 1.0.16261425 the CLI returned 0 whatever happened: a compile error, a
+failing unit test, and a target that does not exist all printed Lightbuild's
+*"BUILD FAILED"* / *"Error: Lightbuild build failed with exit code 1"* and then
+exited 0. In CI that meant a build step could never go red on its own: a
+transient Maven outage broke the debug build in one job here, the step stayed
+green, and the failure only surfaced two steps later as `aapt2` complaining
+that `app-debug.apk` did not exist.
+
+1.0.16457483 propagates Lightbuild's exit code, which fixes plain builds — and
+breaks `test`, `query` and `resolve` the other way round. The exit code that
+comes back is the one of the spurious target-less pre-flight build described
+in the migration notes, so these commands exit 1 even when they succeed: a
+green unit-test run and a red one are indistinguishable by exit code.
+
+Every CI build therefore still goes through `.github/scripts/android-build.sh`,
+a small wrapper that ignores the exit code, tees the output, and fails on a
+reported failure or a missing *"BUILD SUCCESS"* line. It only looks at the
+output after the last *"Lightbuild is experimental"* banner, which skips the
+pre-flight failure. Do the same in any script that needs a verdict from
+`android build test`.
+
+#### The lock files are resolved per source set
+
+`resolved.deps` is not just a record: the generated Gradle build declares every
+entry of a source set with `transitive = false`, so the lock decides exactly
+which versions ship. Two things to know, both found while bumping
+dependencies with Lightbuild 0.0.20-alpha01 and CLI 1.0.16457483:
+
+1. **Each source set is resolved on its own.** The lock files committed
+   under 0.0.10-alpha01 carried one version of a library across `main`, `test`
+   and `androidTest`; regenerated now *without touching the YAML*, `main`
+   dropped from `kotlinx-coroutines` 1.11.0 to 1.9.0, because only the
+   `test` source set (through `kotlinx-coroutines-test`) asks for 1.11.0. The
+   sources use `Flow`/`StateFlow` directly, so `ui/lightbuild.yaml` now
+   declares `kotlinx-coroutines-android` explicitly, which keeps the shipped
+   version where it was.
+2. **A build only refreshes the lock when it has to.** Bumping a declared
+   version to one the lock does not contain made the next `android build`
+   rewrite `resolved.deps`; adding the coroutines line above did not, since
+   1.11.0 was already listed for the `test` source set — the build succeeded
+   and kept shipping 1.9.0. After any dependency edit, run `android build
+   resolve` and read the diff of the `main` section.
+
+The dropped `.debug` suffix is easy to miss, because a hardcoded `adb shell am start -n
 <pkg>/<activity>` then fails with *"Activity class does not exist"* while any
 `|| true` around it keeps the job green. CI now reads the applicationId out of
 the built APK with `aapt2 dump packagename` and resolves the launcher component
@@ -190,6 +234,7 @@ android create empty-activity-lightbuild --name="..." --output=...   # scaffold
 android build query "..."   # list build targets
 android build "app"          # build the debug APK (and ui, its dependency)
 android build test "ui:hostTest"   # run unit tests
+android build resolve        # regenerate the resolved.deps lock files
 android build clean          # clean outputs and caches
 android run --apks=app/build/outputs/apk/debug/app-debug.apk         # deploy
 ```
@@ -233,7 +278,7 @@ rather than by waiting on a real device.
 All the shake logic is pure, so it is tested on the JVM without any device:
 
 ```sh
-android build test
+android build test "ui:hostTest"
 ```
 
 - `ShakeLevelTest` covers `classifyShake`: rest/gravity, both thresholds as
@@ -296,11 +341,14 @@ setting.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on every push and pull request to `main`. Every
-job installs the Android CLI from scratch and builds with Lightbuild
-(`ANDROID_CLI_BUILD=true` is set workflow-wide), so CI also acts as a daily
-check that the alpha toolchain still installs and builds cleanly on a stock
-Ubuntu runner.
+`.github/workflows/ci.yml` runs on every push and pull request to `main`, and
+once a day on a schedule (06:17 UTC). Every job installs the *latest* Android
+CLI from scratch and builds with Lightbuild (`ANDROID_CLI_BUILD=true` is set
+workflow-wide), so the scheduled run is a daily check that the alpha toolchain
+still installs and builds cleanly on a stock Ubuntu runner — the CLI updates
+itself between commits, and without the schedule a behaviour change like the
+exit codes above would only show up on the next push. (GitHub pauses scheduled
+workflows after 60 days without repository activity.)
 
 ### Core jobs
 
@@ -383,7 +431,7 @@ Notes that came out of building these jobs:
 3. Build, test, and deploy:
    ```sh
    android build "app"
-   android build test
+   android build test "ui:hostTest"
    android run --apks=app/build/outputs/apk/debug/app-debug.apk
    ```
 

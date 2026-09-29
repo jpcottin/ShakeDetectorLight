@@ -28,7 +28,7 @@ android:
   # level of the module file into the `android` block.
   dependencies:
     maven:
-      - androidx.core:core-ktx:1.19.0
+      - androidx.core:core-ktx:1.19.1
       - androidx.lifecycle:lifecycle-runtime-ktx:2.11.0
       - androidx.activity:activity-compose:1.13.0
       - androidx.lifecycle:lifecycle-runtime-compose:2.11.0
@@ -36,10 +36,15 @@ android:
       - androidx.compose.ui:ui:1.12.1
       - androidx.compose.ui:ui-tooling-preview:1.12.1
       - androidx.compose.material3:material3:1.4.0
-      - androidx.navigation3:navigation3-ui:1.1.7
-      - androidx.navigation3:navigation3-runtime:1.1.7
+      - androidx.navigation3:navigation3-ui:1.2.0
+      - androidx.navigation3:navigation3-runtime:1.2.0
       - androidx.lifecycle:lifecycle-viewmodel-navigation3:2.11.0
       - androidx.compose.ui:ui-tooling:1.12.1
+      # Declared because the sources use Flow/StateFlow directly, and to pin what
+      # ships: resolved.deps is resolved per source set (seen on 0.0.20-alpha01),
+      # so without this line `main` gets the 1.9.0 that AndroidX asks for
+      # transitively while only `test` gets 1.11.0 (see the README).
+      - org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0
 
   tests:
     test:
