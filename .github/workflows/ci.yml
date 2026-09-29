@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Every job installs the latest Android CLI, which updates independently of
+  # this repository; the daily run catches toolchain changes between commits.
+  schedule:
+    - cron: '17 6 * * *'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
