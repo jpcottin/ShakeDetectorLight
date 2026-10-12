@@ -153,6 +153,9 @@ jobs:
           sh .github/scripts/android-build.sh "ui:deviceTest"
           sh .github/scripts/android-build.sh "app:app-debug.apk"
 
+      # -gpu auto lets the emulator pick its renderer (the software fallback on
+      # a GPU-less runner), and the diagnostics flags make the emulator log
+      # readable when a boot or a test goes wrong, as in the experimental jobs.
       # The androidTest APK is self-instrumenting (library module), so only it
       # needs to be installed. `am instrument -w` exits 0 even when tests fail,
       # hence the explicit check for the "OK (N tests)" summary line.
@@ -166,7 +169,7 @@ jobs:
           target: ${{ matrix.target }}
           arch: x86_64
           profile: pixel_6
-          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot -no-window -gpu auto -noaudio -no-boot-anim -camera-back none -verbose -show-kernel -debug-metrics -metrics-collection
           disable-animations: true
           emulator-boot-timeout: 900
           script: |
