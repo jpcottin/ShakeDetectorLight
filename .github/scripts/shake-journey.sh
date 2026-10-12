@@ -61,9 +61,12 @@ esac
 
 # A crash/ANR system dialog (e.g. "Pixel Launcher isn't responding") steals
 # the window and hides the app; hide_error_dialogs only prevents future
-# dialogs, not one already on screen. Tap its close button if present.
+# dialogs, not one already on screen. Tap its close button if present. The
+# button's node reads {"class":"android.widget.Button","resource-id":
+# "android:id/aerr_close",...,"center":"[540,1233]"}: pick the node that
+# carries the id, then its center.
 dismiss_error_dialog() {
-  TAP="$(grep -o '"center":"\[[0-9,]*\]","resource-id":"aerr_close"' "$1" 2>/dev/null | head -1 | grep -o '[0-9][0-9,]*' | head -1 || true)"
+  TAP="$(grep -o '{[^{}]*"resource-id":"[^"]*aerr_close"[^{}]*}' "$1" 2>/dev/null | head -1 | grep -o '"center":"\[[0-9,]*\]"' | grep -o '[0-9][0-9,]*' | head -1 || true)"
   [ -n "$TAP" ] || return 0
   X="${TAP%,*}"; Y="${TAP#*,}"
   echo "dismissing system error dialog (tap $X $Y)"
