@@ -21,8 +21,8 @@ data class ShakeUiState(
   val shakeLevel: ShakeLevel = ShakeLevel.NONE,
   val acceleration: Float = 0f,
   val isSensorAvailable: Boolean = true,
-  /** Timestamp of the last non-[ShakeLevel.NONE] reading; internal bookkeeping. */
-  internal val lastShakeAt: Long = Long.MIN_VALUE,
+  /** Timestamp of the last non-[ShakeLevel.NONE] reading, null until the first shake; internal bookkeeping. */
+  internal val lastShakeAt: Long? = null,
 )
 
 /**
@@ -36,7 +36,7 @@ internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState =
   when (val level = classifyShake(acceleration)) {
     // A shake: show it and restart the hold window.
     ShakeLevel.NONE ->
-      if (now - lastShakeAt < SHAKE_HOLD_MS) {
+      if (lastShakeAt != null && now - lastShakeAt < SHAKE_HOLD_MS) {
         // Below threshold but still inside the hold window: keep the label.
         copy(acceleration = acceleration)
       } else {
