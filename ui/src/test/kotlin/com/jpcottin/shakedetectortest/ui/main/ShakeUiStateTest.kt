@@ -1,6 +1,7 @@
 package com.jpcottin.shakedetectortest.ui.main
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /** Tests for the shake-hold reducer behind [ShakeDetectorViewModel]. */
@@ -58,6 +59,16 @@ class ShakeUiStateTest {
   @Test
   fun `resting readings from a cold start stay idle`() {
     val state = idle.reduce(acceleration = 9.81f, now = 0L)
+
+    assertEquals(ShakeLevel.NONE, state.shakeLevel)
+    assertNull(state.lastShakeAt)
+  }
+
+  @Test
+  fun `without a recorded shake there is no hold window`() {
+    // A label with no timestamp behind it (never produced by reduce, but the
+    // invariant the hold branch relies on) must reset instead of being held.
+    val state = idle.copy(shakeLevel = ShakeLevel.BIG).reduce(acceleration = 9.81f, now = 0L)
 
     assertEquals(ShakeLevel.NONE, state.shakeLevel)
   }
