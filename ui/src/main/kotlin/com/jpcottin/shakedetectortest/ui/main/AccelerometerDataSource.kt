@@ -33,10 +33,7 @@ class AccelerometerDataSource(private val sensorManager: SensorManager) {
           object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent?) {
               val values = event?.values ?: return
-              val x = values[0]
-              val y = values[1]
-              val z = values[2]
-              trySend(sqrt(x * x + y * y + z * z))
+              trySend(magnitude(values[0], values[1], values[2]))
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -48,3 +45,6 @@ class AccelerometerDataSource(private val sensorManager: SensorManager) {
       }
     }
 }
+
+/** Length of the acceleration vector, in m/s²: about 9.81 for a device at rest. */
+internal fun magnitude(x: Float, y: Float, z: Float): Float = sqrt(x * x + y * y + z * z)
