@@ -284,11 +284,14 @@ android build test "ui:hostTest"
 - `ShakeLevelTest` covers `classifyShake`: rest/gravity, both thresholds as
   exclusive bounds, and values just above each threshold.
 - `ShakeUiStateTest` covers `ShakeUiState.reduce`: a shake being detected, the
-  label being held while the device settles, the hold expiring back to idle, and
-  a second shake restarting the hold window. Time is injected, so none of these
-  tests sleep.
+  label being held while the device settles, the hold expiring back to idle, a
+  second shake restarting the hold window, and no hold at all before the first
+  shake. Time is injected, so none of these tests sleep.
+- `MagnitudeTest` covers `magnitude`, the vector length the sensor listener
+  feeds into `classifyShake`: a 3-4-0 vector, gravity on a single axis, the
+  sign of the components, and a device at rest reading as no shake.
 
-12 unit tests total.
+17 unit tests total.
 
 ### UI tests (`ui/src/androidTest`)
 
