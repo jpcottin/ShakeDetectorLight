@@ -241,14 +241,18 @@ jobs:
           if-no-files-found: warn
 
   # Experiment: drive the whole emulator flow with the Android CLI (canary
-  # emulator + API 37.0 ps16k image) and run the instrumented tests through
+  # emulator + API 37.x ps16k image) and run the instrumented tests through
   # the CLI's native test runner (`android build test ui:deviceTest`)
   # instead of adb + am instrument.
   android-cli-experiment:
-    name: Android CLI experiment (API 37.0 canary emulator)
+    name: Android CLI experiment (API ${{ matrix.api-level }} canary emulator)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: ['37.0', '37.2']
     steps:
       - uses: actions/checkout@v7
 
@@ -273,16 +277,16 @@ jobs:
           android --version
           android info
 
-      - name: Install canary emulator and API 37.0 ps16k image with the CLI
+      - name: Install canary emulator and the ps16k image with the CLI
         run: |
-          android sdk install --canary emulator platform-tools system-images/android-37.0/google_apis_ps16k/x86_64
-          android sdk list | grep -iE "^  emulator|android-37" || true
+          android sdk install --canary emulator platform-tools system-images/android-${{ matrix.api-level }}/google_apis_ps16k/x86_64
+          android sdk list | grep -iE "^  emulator|android-${{ matrix.api-level }}" || true
 
       # 'android emulator create' is profile-based with no way to pin an image (it
       # picks google_apis_playstore, whose first-boot Play overlays steal window
       # focus and break Espresso). An AVD is just ini files, so create the profile
       # with the CLI and retarget it at the pinned image.
-      - name: Create AVD with the CLI and retarget it to API 37.0 ps16k
+      - name: Create AVD with the CLI and retarget it to the ps16k image
         run: |
           android emulator create medium_phone
           DEVICE="$(android emulator list | head -n1)"
@@ -297,8 +301,8 @@ jobs:
           set_ini() {
             if grep -q "^$1=" "$CFG"; then sed -i "s#^$1=.*#$1=$2#" "$CFG"; else echo "$1=$2" >> "$CFG"; fi
           }
-          sed -i 's/^target=.*/target=android-37.0/' "$HOME/.android/avd/$DEVICE.ini"
-          set_ini image.sysdir.1 'system-images/android-37.0/google_apis_ps16k/x86_64/'
+          sed -i 's/^target=.*/target=android-${{ matrix.api-level }}/' "$HOME/.android/avd/$DEVICE.ini"
+          set_ini image.sysdir.1 'system-images/android-${{ matrix.api-level }}/google_apis_ps16k/x86_64/'
           set_ini tag.id google_apis
           set_ini tag.display 'Google APIs'
           set_ini PlayStore.enabled false
@@ -369,7 +373,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: shake-journey-evidence-cli-experiment
+          name: shake-journey-evidence-cli-experiment-${{ matrix.api-level }}
           path: journey/
           if-no-files-found: warn
 
@@ -385,10 +389,14 @@ jobs:
   # — a separate SDK package installing to emulators/latest/, currently API 37+
   # only) by launching its binary directly.
   emulator-preview-experiment:
-    name: Emulator Preview experiment (emulators/latest, API 37.0)
+    name: Emulator Preview experiment (emulators/latest, API ${{ matrix.api-level }})
     runs-on: ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        api-level: ['37.0', '37.2']
     steps:
       - uses: actions/checkout@v7
 
@@ -415,6 +423,8 @@ jobs:
       # emulator package, libpulse, and the console auth token.
       - name: Set up Android Emulator Preview
         uses: ./.github/actions/preview-emulator
+        with:
+          api-level: ${{ matrix.api-level }}
 
       - name: Boot preview emulator
         timeout-minutes: 12
@@ -472,7 +482,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: shake-journey-evidence-preview
+          name: shake-journey-evidence-preview-${{ matrix.api-level }}
           path: journey/
           if-no-files-found: warn
 
