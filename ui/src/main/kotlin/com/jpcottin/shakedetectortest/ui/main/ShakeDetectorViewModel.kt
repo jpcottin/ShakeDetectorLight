@@ -10,7 +10,6 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.runningFold
 import kotlinx.coroutines.flow.stateIn
 
 /** How long a detected shake stays on screen after the last shaking sensor reading. */
@@ -21,6 +20,11 @@ data class ShakeUiState(
   val shakeLevel: ShakeLevel = ShakeLevel.NONE,
   val acceleration: Float = 0f,
   val isSensorAvailable: Boolean = true,
+  /**
+   * How many shakes have been detected since the sensor was first read: one per shake, however
+   * many peaks it has. The screen vibrates when this grows, never on a redraw.
+   */
+  val shakeCount: Int = 0,
   /** Timestamp of the last non-[ShakeLevel.NONE] reading, null until the first shake; internal bookkeeping. */
   internal val lastShakeAt: Long? = null,
 )
@@ -29,22 +33,32 @@ data class ShakeUiState(
  * Folds one accelerometer reading into the current state.
  *
  * A shake stays on screen for [SHAKE_HOLD_MS] after the last shaking reading, so
- * the label doesn't flicker between the peaks of a single shake. Pure and
- * clock-injected, so it is unit tested on the JVM without a device.
+ * the label doesn't flicker between the peaks of a single shake: a weaker peak
+ * inside that window keeps the stronger label (and extends the window), a
+ * stronger one upgrades it, and only the first peak after an idle label counts
+ * as a new shake. Pure and clock-injected, so it is unit tested on the JVM
+ * without a device.
  */
-internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState =
-  when (val level = classifyShake(acceleration)) {
-    // A shake: show it and restart the hold window.
-    ShakeLevel.NONE ->
-      if (lastShakeAt != null && now - lastShakeAt < SHAKE_HOLD_MS) {
-        // Below threshold but still inside the hold window: keep the label.
-        copy(acceleration = acceleration)
-      } else {
-        // Hold expired: back to idle.
-        copy(shakeLevel = ShakeLevel.NONE, acceleration = acceleration)
-      }
-    else -> copy(shakeLevel = level, acceleration = acceleration, lastShakeAt = now)
+internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState {
+  val level = classifyShake(acceleration)
+  val inHold = lastShakeAt != null && now - lastShakeAt < SHAKE_HOLD_MS
+  return when {
+    // Below threshold but still inside the hold window: keep the label.
+    level == ShakeLevel.NONE && inHold -> copy(acceleration = acceleration)
+    // Hold expired (or never shaken): back to idle.
+    level == ShakeLevel.NONE -> copy(shakeLevel = ShakeLevel.NONE, acceleration = acceleration)
+    // A weaker peak of the shake being shown: keep its label, restart the hold window.
+    inHold && level < shakeLevel -> copy(acceleration = acceleration, lastShakeAt = now)
+    // A shake: show it (upgrading a weaker label) and restart the hold window.
+    else ->
+      copy(
+        shakeLevel = level,
+        acceleration = acceleration,
+        lastShakeAt = now,
+        shakeCount = if (shakeLevel == ShakeLevel.NONE) shakeCount + 1 else shakeCount,
+      )
   }
+}
 
 /**
  * Turns the raw accelerometer stream into [ShakeUiState].
@@ -57,15 +71,17 @@ class ShakeDetectorViewModel(
   private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime,
 ) : ViewModel() {
 
+  // Kept outside the flow so the state (and the shake count) survives the sensor being released
+  // and re-subscribed: a fold inside the flow would restart from the idle seed on every return.
+  private var latest = ShakeUiState(isSensorAvailable = accelerometer.isAvailable)
+
   val uiState: StateFlow<ShakeUiState> =
     accelerometer.magnitude
-      .runningFold(ShakeUiState(isSensorAvailable = accelerometer.isAvailable)) { state, reading ->
-        state.reduce(acceleration = reading, now = elapsedRealtimeMs())
-      }
+      .map { reading -> latest.reduce(acceleration = reading, now = elapsedRealtimeMs()).also { latest = it } }
       .stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
-        initialValue = ShakeUiState(isSensorAvailable = accelerometer.isAvailable),
+        initialValue = latest,
       )
 
   companion object {
