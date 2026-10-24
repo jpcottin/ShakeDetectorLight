@@ -364,14 +364,14 @@ workflows after 60 days without repository activity.)
 ### Experimental jobs
 
 Four additional jobs (all `continue-on-error`, so they never block a merge)
-probe the newest emulator tooling. The two single-run experiments run once
-per 16 KB-page-size image, API 37.0 and 37.2, while the multi-run ones stay
-on 37.0:
+probe the newest emulator tooling. The single-run experiments run once per
+16 KB-page-size image (API 37.0 and 37.2 for the Android CLI, API 37.0, 37.1
+and 37.2 for the Emulator Preview), while the multi-run ones stay on 37.0:
 
 | Job | What it does |
 |---|---|
 | **Android CLI experiment** | Drives the whole emulator flow with the CLI: `android sdk install --canary` for the canary emulator and the API 37.0 or 37.2 16 KB-page-size image, `android emulator create` + `start`, and the instrumented tests through the CLI's native runner (`android build test "ui:deviceTest"`) instead of adb + `am instrument`. It then reuses the still-running emulator for the **shake journey**. |
-| **Emulator Preview experiment** | Runs the separate **Android Emulator (Preview)** SDK package (`emulators;latest`, installs under `emulators/latest/`, currently API 37+ only) by launching its binary directly on the API 37.0 and 37.2 images, then runs the instrumented tests and the **shake journey** on it. |
+| **Emulator Preview experiment** | Runs the separate **Android Emulator (Preview)** SDK package (`emulators;latest`, installs under `emulators/latest/`, currently API 37+ only) by launching its binary directly on the API 37.0, 37.1 and 37.2 images, then runs the instrumented tests and the **shake journey** on it. |
 | **Emulator Preview experiment multi-run** | Snapshot save/restore of the *live app* on the preview emulator: four boot cycles with snapshots enabled, the app launched only in cycle 1, each cycle shut down gracefully so a snapshot is saved. Later cycles verify the app came back by itself — process alive, window focused, and a non-empty Compose layout tree (`android layout`), since a mostly-static screen can't be judged by screenshot diffing. Each cycle then runs the **shake journey** against the restored instance before its snapshot is saved — the app is genuinely used every cycle, so later cycles prove a *used* app survives restore and still detects shakes. |
 | **Android CLI experiment multi-run** | The same four-cycle snapshot experiment, but driven entirely by the CLI (`android emulator start`/`stop`, `android run`, `android screen capture`, `android layout`) against the canary emulator — a direct comparison of the CLI tooling against the preview-emulator job. Also runs the **shake journey** in every cycle before the snapshot save. |
 
