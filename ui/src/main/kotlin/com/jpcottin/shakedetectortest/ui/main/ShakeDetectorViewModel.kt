@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -78,6 +79,8 @@ class ShakeDetectorViewModel(
   val uiState: StateFlow<ShakeUiState> =
     accelerometer.magnitude
       .map { reading -> latest.reduce(acceleration = reading, now = elapsedRealtimeMs()).also { latest = it } }
+      // A sensor that could not be subscribed shows as absent rather than as a frozen reading.
+      .catch { emit(latest.copy(isSensorAvailable = false).also { latest = it }) }
       .stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),

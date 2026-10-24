@@ -39,7 +39,15 @@ class AccelerometerDataSource(private val sensorManager: SensorManager) {
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
           }
 
-        sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_NORMAL)
+        // SENSOR_DELAY_NORMAL samples every ~200 ms, which misses the peak of a quick
+        // flick (150-300 ms) more often than not; GAME (~20 ms) is the usual rate for
+        // shake detection. The listener only lives while the screen is visible.
+        val registered =
+          sensorManager.registerListener(listener, accelerometer, SensorManager.SENSOR_DELAY_GAME)
+        if (!registered) {
+          // Reported, not swallowed: a flow that never emits would read "0.00" forever.
+          close(IllegalStateException("accelerometer listener registration failed"))
+        }
 
         awaitClose { sensorManager.unregisterListener(listener) }
       }
