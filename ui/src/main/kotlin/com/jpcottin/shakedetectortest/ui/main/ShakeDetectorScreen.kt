@@ -14,6 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -28,8 +31,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.jpcottin.shakedetectortest.R
 
 /**
- * Stateful screen: observes [ShakeDetectorViewModel] and vibrates whenever the
- * detected shake level changes to an actual shake.
+ * Stateful screen: observes [ShakeDetectorViewModel] and vibrates once per detected
+ * shake (when [ShakeUiState.shakeCount] grows), not when the screen is merely
+ * recreated with a shake still on it.
  */
 @Composable
 fun ShakeDetectorScreen(
@@ -40,10 +44,14 @@ fun ShakeDetectorScreen(
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
 
-  LaunchedEffect(uiState.shakeLevel) {
-    if (uiState.shakeLevel != ShakeLevel.NONE) {
+  // The count already acknowledged by a buzz; saved across recreation so a rotation inside the
+  // hold window does not buzz again for the same shake.
+  var buzzedFor by rememberSaveable { mutableIntStateOf(uiState.shakeCount) }
+  LaunchedEffect(uiState.shakeCount) {
+    if (uiState.shakeCount > buzzedFor) {
       vibrate(context)
     }
+    buzzedFor = uiState.shakeCount
   }
 
   ShakeDetectorContent(uiState = uiState, modifier = modifier)

@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- The screen in this module vibrates on a shake; the permission travels with it
+         (manifest merger adds it to the app and to the self-instrumenting test APK). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application>
         <activity
             android:name=".MainActivity"
