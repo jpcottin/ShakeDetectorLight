@@ -288,13 +288,14 @@ android build test "ui:hostTest"
   second peak restarting the hold window, a weaker peak keeping the stronger
   label (and downgrading it only once the hold expired), a stronger peak
   upgrading it, the shake count (one per shake however many peaks, another
-  only after the label let go, never for resting readings), and no hold at all
-  before the first shake. Time is injected, so none of these tests sleep.
+  only after the label let go, never for resting readings), no hold at all
+  before the first shake, and a reading marking the sensor available again after
+  a failed registration. Time is injected, so none of these tests sleep.
 - `MagnitudeTest` covers `magnitude`, the vector length the sensor listener
   feeds into `classifyShake`: a 3-4-0 vector, gravity on a single axis, the
   sign of the components, and a device at rest reading as no shake.
 
-23 unit tests total.
+24 unit tests total.
 
 ### UI tests (`ui/src/androidTest`)
 

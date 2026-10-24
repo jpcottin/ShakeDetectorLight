@@ -43,7 +43,7 @@ data class ShakeUiState(
 internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState {
   val level = classifyShake(acceleration)
   val inHold = lastShakeAt != null && now - lastShakeAt < SHAKE_HOLD_MS
-  return when {
+  val next = when {
     // Below threshold but still inside the hold window: keep the label.
     level == ShakeLevel.NONE && inHold -> copy(acceleration = acceleration)
     // Hold expired (or never shaken): back to idle.
@@ -59,6 +59,9 @@ internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState {
         shakeCount = if (shakeLevel == ShakeLevel.NONE) shakeCount + 1 else shakeCount,
       )
   }
+  // A reading is proof the sensor delivers, whatever an earlier registration attempt
+  // said: the flow restarts after a failed registration and may succeed the next time.
+  return if (next.isSensorAvailable) next else next.copy(isSensorAvailable = true)
 }
 
 /**
