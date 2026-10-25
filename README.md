@@ -100,6 +100,12 @@ to 0.0.20-alpha01 broke three things at once:
    required for command test"*; unit tests are `android build test
    "ui:hostTest"`.
 
+Android CLI 1.1 then dropped `android build test` / `query` / `resolve` altogether (its
+`build` only assembles the named target) and stopped streaming Lightbuild's output (a
+`Build log: /tmp/build-log-<n>.log` line instead): the CI wrapper drives the pinned
+Lightbuild daemon directly for those commands and reads the verdict from that file, so
+run tests through `sh .github/scripts/android-build.sh test "ui:hostTest"`.
+
 One regression comes with it: `android build test`, `android build query` and
 `android build resolve` first run a target-less `build`, which the new
 Lightbuild rejects. They therefore print *"Fatal: Build Failed … Target is
@@ -233,7 +239,7 @@ The [Android CLI](https://developer.android.com/tools/agents/android-cli)
 android create empty-activity-lightbuild --name="..." --output=...   # scaffold
 android build query "..."   # list build targets
 android build "app"          # build the debug APK (and ui, its dependency)
-android build test "ui:hostTest"   # run unit tests
+sh .github/scripts/android-build.sh test "ui:hostTest"   # run unit tests
 android build resolve        # regenerate the resolved.deps lock files
 android build clean          # clean outputs and caches
 android run --apks=app/build/outputs/apk/debug/app-debug.apk         # deploy
@@ -441,7 +447,7 @@ Notes that came out of building these jobs:
 3. Build, test, and deploy:
    ```sh
    android build "app"
-   android build test "ui:hostTest"
+   sh .github/scripts/android-build.sh test "ui:hostTest"
    android run --apks=app/build/outputs/apk/debug/app-debug.apk
    ```
 
