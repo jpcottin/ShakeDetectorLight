@@ -71,7 +71,7 @@ internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState {
  * [SharingStarted.WhileSubscribed]), so backgrounding the app releases it.
  */
 class ShakeDetectorViewModel(
-  accelerometer: AccelerometerDataSource,
+  accelerometer: Accelerometer,
   private val elapsedRealtimeMs: () -> Long = SystemClock::elapsedRealtime,
 ) : ViewModel() {
 

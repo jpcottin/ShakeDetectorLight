@@ -11,19 +11,35 @@ import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.emptyFlow
 
 /**
+ * An accelerometer read as a cold [Flow] of magnitudes, in m/s².
+ *
+ * [AccelerometerDataSource] is the device sensor; tests substitute a stream they
+ * drive themselves.
+ */
+interface Accelerometer {
+  /** False on devices with no accelerometer, where [magnitude] never emits. */
+  val isAvailable: Boolean
+
+  /**
+   * Readings start when the flow is collected and stop when collection does. A
+   * sensor that cannot be subscribed fails the flow instead of staying silent.
+   */
+  val magnitude: Flow<Float>
+}
+
+/**
  * Exposes the device accelerometer as a cold [Flow] of magnitudes, in m/s².
  *
  * The listener is registered when the flow is collected and unregistered as soon
  * as collection stops, so nothing keeps the sensor alive while the app is in the
  * background.
  */
-class AccelerometerDataSource(private val sensorManager: SensorManager) {
+class AccelerometerDataSource(private val sensorManager: SensorManager) : Accelerometer {
 
-  /** False on devices with no accelerometer, where [magnitude] never emits. */
-  val isAvailable: Boolean
+  override val isAvailable: Boolean
     get() = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) != null
 
-  val magnitude: Flow<Float>
+  override val magnitude: Flow<Float>
     get() {
       val accelerometer =
         sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER) ?: return emptyFlow()
