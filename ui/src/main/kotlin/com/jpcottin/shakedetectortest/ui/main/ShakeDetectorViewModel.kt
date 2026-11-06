@@ -36,9 +36,10 @@ data class ShakeUiState(
  * A shake stays on screen for [SHAKE_HOLD_MS] after the last shaking reading, so
  * the label doesn't flicker between the peaks of a single shake: a weaker peak
  * inside that window keeps the stronger label (and extends the window), a
- * stronger one upgrades it, and only the first peak after an idle label counts
- * as a new shake. Pure and clock-injected, so it is unit tested on the JVM
- * without a device.
+ * stronger one upgrades it, and only the first peak after the window counts as
+ * a new shake: whether an idle reading came in between or not, as none does
+ * when the sensor was released mid-shake and is read again while shaking. Pure
+ * and clock-injected, so it is unit tested on the JVM without a device.
  */
 internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState {
   val level = classifyShake(acceleration)
@@ -50,13 +51,14 @@ internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState {
     level == ShakeLevel.NONE -> copy(shakeLevel = ShakeLevel.NONE, acceleration = acceleration)
     // A weaker peak of the shake being shown: keep its label, restart the hold window.
     inHold && level < shakeLevel -> copy(acceleration = acceleration, lastShakeAt = now)
-    // A shake: show it (upgrading a weaker label) and restart the hold window.
+    // A shake: show it (upgrading a weaker label) and restart the hold window. Past
+    // the window it is a new shake, even if the label never had time to let go.
     else ->
       copy(
         shakeLevel = level,
         acceleration = acceleration,
         lastShakeAt = now,
-        shakeCount = if (shakeLevel == ShakeLevel.NONE) shakeCount + 1 else shakeCount,
+        shakeCount = if (inHold) shakeCount else shakeCount + 1,
       )
   }
   // A reading is proof the sensor delivers, whatever an earlier registration attempt
