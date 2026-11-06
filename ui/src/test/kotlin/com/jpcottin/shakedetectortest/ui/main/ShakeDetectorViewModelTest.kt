@@ -115,6 +115,37 @@ class ShakeDetectorViewModelTest {
     }
 
   @Test
+  fun `a shake on return from the background counts with the label still up`() =
+    runTest(dispatcher) {
+      val sensor = FakeAccelerometer()
+      val viewModel = ShakeDetectorViewModel(sensor) { now }
+
+      val firstVisit = launch { viewModel.uiState.collect() }
+      runCurrent()
+      sensor.readings.emit(20f)
+      runCurrent()
+      assertEquals(1, viewModel.uiState.value.shakeCount)
+
+      // Backgrounded inside the hold window: the label is still up when the sensor goes.
+      firstVisit.cancel()
+      advanceTimeBy(5_001)
+      runCurrent()
+      assertEquals(0, sensor.activeSubscriptions)
+      assertEquals(ShakeLevel.BIG, viewModel.uiState.value.shakeLevel)
+
+      // Back a minute later, already shaking: the first reading is a new shake, so the
+      // count grows and the screen buzzes for it.
+      now += 60_000L
+      val secondVisit = launch { viewModel.uiState.collect() }
+      runCurrent()
+      sensor.readings.emit(20f)
+      runCurrent()
+
+      assertEquals(2, viewModel.uiState.value.shakeCount)
+      secondVisit.cancel()
+    }
+
+  @Test
   fun `a failed registration reads as a missing sensor`() =
     runTest(dispatcher) {
       val sensor =

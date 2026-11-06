@@ -114,6 +114,19 @@ class ShakeUiStateTest {
   }
 
   @Test
+  fun `a shake after the hold expired counts again even with the label still up`() {
+    val first = idle.reduce(acceleration = 20f, now = 1_000L)
+
+    // No idle reading in between: the sensor was released mid-shake and its first
+    // reading on return is already a shake, weaker or stronger than the label.
+    val weaker = first.reduce(acceleration = 14f, now = 1_000L + SHAKE_HOLD_MS)
+    val stronger = first.reduce(acceleration = 25f, now = 1_000L + SHAKE_HOLD_MS)
+
+    assertEquals(2, weaker.shakeCount)
+    assertEquals(2, stronger.shakeCount)
+  }
+
+  @Test
   fun `resting readings never count as a shake`() {
     val state = idle.reduce(acceleration = 9.81f, now = 1_000L).reduce(acceleration = 10f, now = 1_200L)
 
