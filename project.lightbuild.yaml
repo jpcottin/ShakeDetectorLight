@@ -10,7 +10,7 @@ repositories:
   - mavenCentral
 
 lightbuild:
-  version: "0.0.20-alpha01"
+  version: "0.0.30"
 
 build:
   kotlin: 2.4.20

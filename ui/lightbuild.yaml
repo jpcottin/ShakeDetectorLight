@@ -5,7 +5,7 @@ type: library
 
 kotlin:
   # Declared intent: keep the sample warning-clean. NOTE: verified to be a no-op
-  # in Lightbuild 0.0.20-alpha01 (as in 0.0.10-alpha01) — the key validates but
+  # in Lightbuild 0.0.30 (as in 0.0.10-alpha01 and 0.0.20-alpha01) — the key validates but
   # reaches neither the generated Gradle nor the compiler (a deliberate
   # unused-variable warning still builds). Kept so it takes effect once
   # Lightbuild wires it up.
@@ -25,7 +25,7 @@ android:
       release:
         apiLevel: 24
   # Lightbuild 0.0.20-alpha01 moved `dependencies` and `tests` from the top
-  # level of the module file into the `android` block.
+  # level of the module file into the `android` block; 0.0.30 keeps that layout.
   dependencies:
     maven:
       - androidx.core:core-ktx:1.19.1
