@@ -5,7 +5,7 @@ type: application
 
 kotlin:
   # Declared intent: keep the sample warning-clean. NOTE: verified to be a no-op
-  # in Lightbuild 0.0.20-alpha01 (as in 0.0.10-alpha01) — the key validates but
+  # in Lightbuild 0.0.30 (as in 0.0.10-alpha01 and 0.0.20-alpha01) — the key validates but
   # reaches neither the generated Gradle nor the compiler (a deliberate
   # unused-variable warning still builds). Kept so it takes effect once
   # Lightbuild wires it up.
@@ -17,7 +17,7 @@ kotlin:
 android:
   namespace: com.jpcottin.shakedetectortest.app
   # Lightbuild 0.0.20-alpha01 moved `dependencies` (and `tests`) from the top
-  # level of the module file into the `android` block.
+  # level of the module file into the `android` block; 0.0.30 keeps that layout.
   dependencies:
     module:
       - //ui
@@ -37,9 +37,9 @@ android:
   versionCode: 1
   versionName: "1.0"
   packaging:
-    # NOTE: adding this block flips the target that a bare `android build`
-    # resolves to, from //app:buildDebug to //app:buildRelease. CI therefore
-    # names the debug target explicitly instead of relying on the default.
+    # NOTE: on 0.0.10-alpha01 adding this block flipped the target that a bare
+    # `android build` resolved to, from //app:buildDebug to //app:buildRelease.
+    # `lightbuild build` takes a target, and CI names app:app-debug.apk anyway.
     release:
       # R8 full-mode shrinking/obfuscation for the release APK and bundle.
       # `includeDefault` pulls in the default keep rules (Compose, AndroidX,

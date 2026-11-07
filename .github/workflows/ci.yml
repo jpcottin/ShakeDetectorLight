@@ -14,11 +14,6 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Lightbuild support in the Android CLI is gated behind this variable:
-  # it unlocks the `android build` command (and the lightbuild templates).
-  ANDROID_CLI_BUILD: 'true'
-
 jobs:
   build-and-unit-tests:
     name: Build + Unit Tests (Lightbuild)
@@ -37,23 +32,27 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Android CLI diagnostics
+      # The Lightbuild version pinned in project.lightbuild.yaml, with the
+      # `lightbuild` CLI it ships (the Android CLI's `build` cannot test or query).
+      - name: Install Lightbuild
+        run: sh .github/scripts/install-lightbuild.sh
+
+      - name: Toolchain diagnostics
         run: |
           android --version
           android info
+          lightbuild --version
 
-      # Named explicitly: a bare `android build` is a no-op on current CLIs (it
-      # prints usage and exits 0) and on older ones resolved to the release
-      # APK once app/lightbuild.yaml declared a release packaging block; either
-      # way the debug APK the upload below expects would silently go missing.
+      # Every target is named, and `lightbuild`'s exit code is the verdict: a
+      # compile error, a failing test or an unknown target fails the step.
       - name: Build all modules
         run: |
-          sh .github/scripts/android-build.sh "ui"
-          sh .github/scripts/android-build.sh "ui:deviceTest"
-          sh .github/scripts/android-build.sh "app:app-debug.apk"
+          lightbuild --plain build "ui"
+          lightbuild --plain build "ui:deviceTest"
+          lightbuild --plain build "app:app-debug.apk"
 
       - name: Run unit tests
-        run: sh .github/scripts/android-build.sh test "ui:hostTest"
+        run: lightbuild --plain test "ui:hostTest"
 
       - name: Upload unit test results
         if: always()
@@ -92,10 +91,15 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # The Lightbuild version pinned in project.lightbuild.yaml, with the
+      # `lightbuild` CLI it ships (the Android CLI's `build` cannot test or query).
+      - name: Install Lightbuild
+        run: sh .github/scripts/install-lightbuild.sh
+
       # Guards the release configuration the same way the Gradle projects
       # guard their R8 setup with assembleRelease.
       - name: Build release APK
-        run: sh .github/scripts/android-build.sh "app:app-release.apk"
+        run: lightbuild --plain build "app:app-release.apk"
 
       - name: Upload release APK
         uses: actions/upload-artifact@v7
@@ -185,14 +189,17 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Both APKs are named explicitly: a bare `android build` is a no-op on
-      # current CLIs, and only the ui:deviceTest target writes the
-      # instrumentation APK installed below (the shake journey installs the
-      # debug APK).
+      # The Lightbuild version pinned in project.lightbuild.yaml, with the
+      # `lightbuild` CLI it ships (the Android CLI's `build` cannot test or query).
+      - name: Install Lightbuild
+        run: sh .github/scripts/install-lightbuild.sh
+
+      # Only the ui:deviceTest target writes the instrumentation APK installed
+      # below (the shake journey installs the debug APK).
       - name: Build test APK with Lightbuild
         run: |
-          sh .github/scripts/android-build.sh "ui:deviceTest"
-          sh .github/scripts/android-build.sh "app:app-debug.apk"
+          lightbuild --plain build "ui:deviceTest"
+          lightbuild --plain build "app:app-debug.apk"
 
       # -gpu auto lets the emulator pick its renderer (the software fallback on
       # a GPU-less runner); the API 37.2 legs also try lavapipe explicitly. The
@@ -242,7 +249,7 @@ jobs:
 
   # Experiment: drive the whole emulator flow with the Android CLI (canary
   # emulator + API 37.x ps16k image) and run the instrumented tests through
-  # the CLI's native test runner (`android build test ui:deviceTest`)
+  # Lightbuild's own device-test runner (`lightbuild test ui:deviceTest`)
   # instead of adb + am instrument.
   android-cli-experiment:
     name: Android CLI experiment (API ${{ matrix.api-level }} canary emulator)
@@ -272,10 +279,16 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      - name: Android CLI diagnostics
+      # The Lightbuild version pinned in project.lightbuild.yaml, with the
+      # `lightbuild` CLI it ships (the Android CLI's `build` cannot test or query).
+      - name: Install Lightbuild
+        run: sh .github/scripts/install-lightbuild.sh
+
+      - name: Toolchain diagnostics
         run: |
           android --version
           android info
+          lightbuild --version
 
       - name: Install canary emulator and the ps16k image with the CLI
         run: |
@@ -324,11 +337,9 @@ jobs:
           Xvfb :99 -screen 0 1280x800x24 &
           echo "DISPLAY=:99" >> "$GITHUB_ENV"
 
-      # The debug APK is named explicitly for the same reason as elsewhere: a
-      # bare `android build` is a no-op on current CLIs, and the shake journey
-      # below installs the debug APK.
+      # The shake journey below installs the debug APK.
       - name: Build with Lightbuild
-        run: sh .github/scripts/android-build.sh "app:app-debug.apk"
+        run: lightbuild --plain build "app:app-debug.apk"
 
       - name: Start emulator with the CLI
         timeout-minutes: 15
@@ -357,8 +368,8 @@ jobs:
         if: failure()
         run: cat "$HOME/.android/$DEVICE/emulator.log" 2>/dev/null || echo "(no emulator.log)"
 
-      - name: Run instrumented tests through the CLI
-        run: sh .github/scripts/android-build.sh test "ui:deviceTest"
+      - name: Run instrumented tests through Lightbuild
+        run: lightbuild --plain test "ui:deviceTest"
 
       # The shake journey (.github/scripts/shake-journey.sh, a deterministic
       # translation of docs/journeys/shake-journey-emulator.xml) reuses the
@@ -410,14 +421,17 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Both APKs are named explicitly: a bare `android build` is a no-op on
-      # current CLIs, and only the ui:deviceTest target writes the
-      # instrumentation APK installed below (the shake journey installs the
-      # debug APK).
+      # The Lightbuild version pinned in project.lightbuild.yaml, with the
+      # `lightbuild` CLI it ships (the Android CLI's `build` cannot test or query).
+      - name: Install Lightbuild
+        run: sh .github/scripts/install-lightbuild.sh
+
+      # Only the ui:deviceTest target writes the instrumentation APK installed
+      # below (the shake journey installs the debug APK).
       - name: Build with Lightbuild
         run: |
-          sh .github/scripts/android-build.sh "ui:deviceTest"
-          sh .github/scripts/android-build.sh "app:app-debug.apk"
+          lightbuild --plain build "ui:deviceTest"
+          lightbuild --plain build "app:app-debug.apk"
 
       # Shared setup: KVM, cmdline-tools, ps16k image + AVD, the preview
       # emulator package, libpulse, and the console auth token.
@@ -522,11 +536,14 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Named explicitly: a bare `android build` builds nothing on current CLIs
-      # (and resolved to the release APK on older ones), so app-debug.apk, which
-      # this job installs, would never be written.
+      # The Lightbuild version pinned in project.lightbuild.yaml, with the
+      # `lightbuild` CLI it ships (the Android CLI's `build` cannot test or query).
+      - name: Install Lightbuild
+        run: sh .github/scripts/install-lightbuild.sh
+
+      # This job installs app-debug.apk.
       - name: Build debug APK with Lightbuild
-        run: sh .github/scripts/android-build.sh "app:app-debug.apk"
+        run: lightbuild --plain build "app:app-debug.apk"
 
       - name: Set up Android Emulator Preview
         uses: ./.github/actions/preview-emulator
@@ -773,11 +790,14 @@ jobs:
           curl -fsSL https://dl.google.com/android/cli/latest/linux_x86_64/install.sh | bash
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
-      # Named explicitly: a bare `android build` builds nothing on current CLIs
-      # (and resolved to the release APK on older ones), so app-debug.apk, which
-      # this job installs, would never be written.
+      # The Lightbuild version pinned in project.lightbuild.yaml, with the
+      # `lightbuild` CLI it ships (the Android CLI's `build` cannot test or query).
+      - name: Install Lightbuild
+        run: sh .github/scripts/install-lightbuild.sh
+
+      # This job installs app-debug.apk.
       - name: Build debug APK with Lightbuild
-        run: sh .github/scripts/android-build.sh "app:app-debug.apk"
+        run: lightbuild --plain build "app:app-debug.apk"
 
       - name: Install canary emulator and API 37.0 ps16k image with the CLI
         run: |
