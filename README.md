@@ -8,8 +8,8 @@ accelerometer magnitude on screen.
 
 Its distinguishing feature is not the app itself but **how it is built**: it is
 a fully working example of a project using **Lightbuild**, Google's new
-declarative build system, driven entirely from the **Android CLI** — no Gradle
-files anywhere in the repository.
+declarative build system, built and tested with its **`lightbuild` CLI** and
+deployed with the **Android CLI** — no Gradle files anywhere in the repository.
 
 ```
 Shake your phone!          →  resting (magnitude ≈ 9.81, gravity)
@@ -40,7 +40,7 @@ testers. Instead of imperative Gradle scripts, the whole build is described by:
 | `project.lightbuild.yaml` | Project name, module list, repositories, Kotlin/Java versions, Lightbuild version |
 | `app/lightbuild.yaml` | Application module: `applicationId`, SDK levels, R8 release optimization, dependency on `//ui` (module dependencies keep the `//` prefix; build targets no longer do) |
 | `ui/lightbuild.yaml` | Library module: Maven dependencies, unit/instrumented test configuration |
-| `*/resolved.deps` | Pinned dependency resolution files for reproducible, offline-capable builds (regenerate with `android build resolve` — see below) |
+| `*/resolved.deps` | Pinned dependency resolution files for reproducible, offline-capable builds (regenerate with `lightbuild resolve` — see below) |
 
 The full set of keys Lightbuild accepts is described by the JSON schemas bundled
 inside its own jar (`lightbuild.yaml.schema.json` and
@@ -48,6 +48,10 @@ inside its own jar (`lightbuild.yaml.schema.json` and
 Since 0.0.20-alpha01 the distribution is a single `lightbuild-daemon` binary
 that unpacks itself under `~/.android/lightbuild/daemon-bundles/`; the schemas
 live in `repo/com/google/lume/lightbuild-private-api/<version>/*.jar` there.
+0.0.30 adds a `cli/` directory next to the daemon with the standalone
+`lightbuild` CLI (and an `install.sh` that copies it to `~/.local/bin`) and a
+`SKILL.md` that documents the schema and the commands; the CLI unpacks its own
+bundle under `~/.android/lightbuild/cli-bundles/`.
 You can also read exactly what your YAML was translated into: Lightbuild writes
 the generated Gradle build to `.lightbuild/gradle/` (gitignored), which is the
 quickest way to confirm a key actually took effect.
@@ -75,12 +79,48 @@ release stack traces (CI archives it).
 #### Alpha rough edges found while building this
 
 Schema-valid keys that misbehave, verified by inspecting the generated Gradle
-and by experiment (first on 0.0.10-alpha01, re-checked on 0.0.20-alpha01):
+and by experiment (first on 0.0.10-alpha01, re-checked on 0.0.20-alpha01 and 0.0.30):
 
 | Key | Behaviour |
 |---|---|
-| `kotlin.allWarningsAsErrors` | Accepted; never reaches the compiler — a deliberate unused-variable warning still builds, on 0.0.20-alpha01 too. Left in the config so it takes effect once implemented. |
+| `kotlin.allWarningsAsErrors` | Accepted; never reaches the compiler — a deliberate unused-variable warning still builds, on 0.0.30 too. Left in the config so it takes effect once implemented. |
 | `kotlin.jvmTarget` | **Fixed in 0.0.20-alpha01**: a quoted `"17"` validates. On 0.0.10-alpha01 it failed as *"integer found, string expected"* however it was written, because the YAML parser coerced the string to an integer before the schema check. Project-level `build.java.version` drives it here either way. |
+
+#### Migrating 0.0.20-alpha01 → 0.0.30
+
+Nothing in the YAML had to change: the pin went from `0.0.20-alpha01` to
+`0.0.30` and every file validated as it was (the schema is the one described
+below — `dependencies` and `tests` under `android`, `packaging`, the structured
+`compileSdk`). What 0.0.30 brings is a build tool of its own:
+
+- **A standalone CLI.** The SDK package now carries `cli/lightbuild`, with the
+  commands the Android CLI used to front and then dropped: `build`, `test`,
+  `query`, `resolve` and `clean`, run from the project directory (or with
+  `--project=<path>`). Install the package with the Android CLI, then run the
+  installer it contains:
+  ```sh
+  android sdk install build/lightbuild/0.0.30
+  bash "$(android info sdk)/build/lightbuild/0.0.30/cli/install.sh"   # ~/.local/bin/lightbuild
+  ```
+  CI does the same through `.github/scripts/install-lightbuild.sh`, which reads
+  the pin from `project.lightbuild.yaml` so the version is written once.
+- **Exit codes that mean something.** `lightbuild` exits 0 on a green build or
+  test run and 1 on a compile error, a failing test or an unknown target (see
+  the table below), so the wrapper script that used to grep Lightbuild's output
+  for a verdict is gone: the workflows call `lightbuild` directly.
+- **Output locations on request.** `lightbuild query "..." --output=files`
+  prints where every target writes (`app/build/app-debug.apk`,
+  `ui/build/deviceTest/ui-deviceTest.apk`, `ui/build/outputs/test-results`);
+  the `*/build/outputs/` tree is still written as before, so the CI uploads
+  and the `adb install` paths did not move.
+- **`--plain`** turns the progress bars and colours off, which keeps CI logs
+  readable.
+
+The Android CLI is unchanged by the release: with `ANDROID_CLI_BUILD=true`,
+`android build "<target>"` still builds a named target through the pinned
+daemon (0.0.30 now), and still cannot test, query or resolve. Two of the rough
+edges above survive the bump: `kotlin.allWarningsAsErrors` is still a no-op,
+and debug builds still carry no `.debug` applicationId suffix.
 
 #### Migrating 0.0.10-alpha01 → 0.0.20-alpha01
 
@@ -102,9 +142,9 @@ to 0.0.20-alpha01 broke three things at once:
 
 Android CLI 1.1 then dropped `android build test` / `query` / `resolve` altogether (its
 `build` only assembles the named target) and stopped streaming Lightbuild's output (a
-`Build log: /tmp/build-log-<n>.log` line instead): the CI wrapper drives the pinned
-Lightbuild daemon directly for those commands and reads the verdict from that file, so
-run tests through `sh .github/scripts/android-build.sh test "ui:hostTest"`.
+`Build log: /tmp/build-log-<n>.log` line instead): until Lightbuild shipped its own CLI
+(0.0.30, above), the CI wrapper drove the pinned Lightbuild daemon directly for those
+commands and read the verdict from that file.
 
 One regression comes with it: `android build test`, `android build query` and
 `android build resolve` first run a target-less `build`, which the new
@@ -135,9 +175,9 @@ Two behavioural surprises, both triggered by simply declaring an
 
 #### Discovering targets
 
-`android build query "..."` lists every target with its command and a
-description (Lightbuild 0.0.20-alpha01 names; the 0.0.10-alpha01 equivalent is
-in the right-hand column):
+`lightbuild query "..."` lists every target with its command and a
+description (the names since 0.0.20-alpha01, unchanged in 0.0.30; the
+0.0.10-alpha01 equivalent is in the right-hand column):
 
 | Target | Builds | Was (0.0.10-alpha01) |
 |---|---|---|
@@ -145,29 +185,32 @@ in the right-hand column):
 | `app:app-release.apk` | Release APK (R8) | `//app:main:apk:release` |
 | `app:app-debug.aab`, `app:app-release.aab` | App bundles | `//app:main:bundle:debug`, `//app:main:bundle:release` |
 | `ui`, `ui:ui.aar` | Release AAR — the bare `ui` target also builds the unit and instrumented tests | `//ui`, `//ui:main:aar:release` |
-| `ui:hostTest` | Unit tests (`android build test "ui:hostTest"` runs them) | `//ui:test` |
-| `ui:deviceTest`, `ui:ui-deviceTest.apk` | Instrumented tests (`android build test "ui:deviceTest"` runs them) | `//ui:androidTest` |
+| `ui:hostTest` | Unit tests (`lightbuild test "ui:hostTest"` runs them) | `//ui:test` |
+| `ui:deviceTest`, `ui:ui-deviceTest.apk` | Instrumented tests (`lightbuild test "ui:deviceTest"` runs them) | `//ui:androidTest` |
 
 The outputs under `*/build/outputs/` are unchanged, so nothing downstream of
-the build had to move. Wildcards now work for building too: `android build
+the build had to move. Wildcards now work for building too: `lightbuild build
 "..."` builds everything (on 0.0.10-alpha01 it failed with *"Target //... not
-found"*). `android describe`, the CLI's project-metadata command, does not understand
-Lightbuild projects at all (*"gradlew not found"*).
+found"*), and `lightbuild query "..." --output=files` prints where each target
+writes. `android describe`, the Android CLI's project-metadata command, does not
+understand Lightbuild projects at all (*"gradlew not found"*).
 
-#### Exit codes you cannot trust
+#### Exit codes: trust `lightbuild`, not `android build`
 
-The biggest trap so far is the exit code of `android build`, and it has
-changed shape between CLI releases without ever becoming reliable:
+The biggest trap so far was the exit code of `android build`, which changed
+shape between CLI releases without ever becoming reliable. The `lightbuild`
+CLI of 0.0.30 gets it right, which is the main reason CI moved to it:
 
-| Command | CLI 1.0.16261425 | CLI 1.0.16457483 |
-|---|---|---|
-| `android build "app"`, build succeeds | 0 | 0 |
-| `android build "nope:doesnotexist"` | 0 | **1** (fixed) |
-| bare `android build` (prints usage, builds nothing) | 0 | 0 |
-| `android build query "..."`, targets listed | 0 | **1** |
-| `android build test "ui:hostTest"`, all tests pass | 0 | **1** |
-| `android build test "ui:hostTest"`, one test fails | 0 | 1 |
-| `android build resolve`, lock files written | — | **1** |
+| Command | `android build`, CLI 1.0.16261425 | `android build`, CLI 1.0.16457483 | `lightbuild` 0.0.30 |
+|---|---|---|---|
+| `build "app"`, build succeeds | 0 | 0 | 0 |
+| `build "ui"`, compile error | 0 | 1 | 1 |
+| `build "nope:doesnotexist"` | 0 | **1** (fixed) | 1 |
+| bare `build` (no target) | 0 (prints usage, builds nothing) | 0 (prints usage, builds nothing) | 0 (builds every target, like `build "..."`) |
+| `query "..."`, targets listed | 0 | **1** | 0 |
+| `test "ui:hostTest"`, all tests pass | 0 | **1** | 0 |
+| `test "ui:hostTest"`, one test fails | 0 | 1 | 1 |
+| `resolve`, lock files written | — | **1** | 0 |
 
 Up to 1.0.16261425 the CLI returned 0 whatever happened: a compile error, a
 failing unit test, and a target that does not exist all printed Lightbuild's
@@ -183,12 +226,11 @@ comes back is the one of the spurious target-less pre-flight build described
 in the migration notes, so these commands exit 1 even when they succeed: a
 green unit-test run and a red one are indistinguishable by exit code.
 
-Every CI build therefore still goes through `.github/scripts/android-build.sh`,
-a small wrapper that ignores the exit code, tees the output, and fails on a
-reported failure or a missing *"BUILD SUCCESS"* line. It only looks at the
-output after the last *"Lightbuild is experimental"* banner, which skips the
-pre-flight failure. Do the same in any script that needs a verdict from
-`android build test`.
+Until 0.0.30 every CI build therefore went through a small wrapper script that
+ignored the exit code, teed the output, and failed on a reported failure or a
+missing *"BUILD SUCCESS"* line. With `lightbuild` the exit code is the verdict
+and the wrapper is gone; a script that needs a verdict can simply check `$?`,
+as long as it calls `lightbuild` and not `android build`.
 
 #### The lock files are resolved per source set
 
@@ -209,7 +251,7 @@ dependencies with Lightbuild 0.0.20-alpha01 and CLI 1.0.16457483:
    version to one the lock does not contain made the next `android build`
    rewrite `resolved.deps`; adding the coroutines line above did not, since
    1.11.0 was already listed for the `test` source set — the build succeeded
-   and kept shipping 1.9.0. After any dependency edit, run `android build
+   and kept shipping 1.9.0. After any dependency edit, run `lightbuild
    resolve` and read the diff of the `main` section.
 
 The dropped `.debug` suffix is easy to miss, because a hardcoded `adb shell am start -n
@@ -224,24 +266,31 @@ reason to prefer it over hand-rolled `adb` invocations.
 Behind the scenes Lightbuild converts these files to another build system that
 performs the actual build; you only ever edit the YAML.
 
-**Enabling it:** the feature is gated behind an environment variable:
+**Installing it:** Lightbuild is an SDK package that the Android CLI installs,
+and since 0.0.30 the package carries the `lightbuild` CLI:
 
 ```sh
-export ANDROID_CLI_BUILD=true
+android sdk install build/lightbuild/0.0.30
+bash "$(android info sdk)/build/lightbuild/0.0.30/cli/install.sh"   # ~/.local/bin/lightbuild
 ```
+
+`export ANDROID_CLI_BUILD=true` is only needed for `android build` (and the
+Lightbuild project templates), which the Android CLI gates behind that
+variable.
 
 ### Tooling: Android CLI
 
 The [Android CLI](https://developer.android.com/tools/agents/android-cli)
-(`android`) is used for the complete development loop:
+(`android`) installs the SDK and Lightbuild, scaffolds, deploys and inspects;
+`lightbuild` builds and tests:
 
 ```sh
-android create empty-activity-lightbuild --name="..." --output=...   # scaffold
-android build query "..."   # list build targets
-android build "app"          # build the debug APK (and ui, its dependency)
-sh .github/scripts/android-build.sh test "ui:hostTest"   # run unit tests
-android build resolve        # regenerate the resolved.deps lock files
-android build clean          # clean outputs and caches
+android create empty-activity-lightbuild --name="..." --output=...   # scaffold (ANDROID_CLI_BUILD=true)
+lightbuild query "..."          # list build targets (--output=files for where they write)
+lightbuild build "app"          # build the debug APK (and ui, its dependency)
+lightbuild test "ui:hostTest"   # run unit tests
+lightbuild resolve              # regenerate the resolved.deps lock files
+lightbuild clean                # clean outputs and caches
 android run --apks=app/build/outputs/apk/debug/app-debug.apk         # deploy
 ```
 
@@ -285,7 +334,7 @@ rather than by waiting on a real device.
 All the shake logic is pure, so it is tested on the JVM without any device:
 
 ```sh
-android build test "ui:hostTest"
+lightbuild test "ui:hostTest"
 ```
 
 - `ShakeLevelTest` covers `classifyShake`: rest/gravity, both thresholds as
@@ -325,7 +374,7 @@ their expected text from `strings.xml`, so they don't drift from the UI.
 Run them on a connected device/emulator with:
 
 ```sh
-android build "ui:deviceTest"   # assembles ui-debug-androidTest.apk
+lightbuild build "ui:deviceTest"   # assembles ui-debug-androidTest.apk
 adb install -r ui/build/outputs/apk/androidTest/debug/ui-debug-androidTest.apk
 adb shell am instrument -w com.jpcottin.shakedetectortest.test/androidx.test.runner.AndroidJUnitRunner
 ```
@@ -366,18 +415,19 @@ setting.
 
 `.github/workflows/ci.yml` runs on every push and pull request to `main`, and
 once a day on a schedule (06:17 UTC). Every job installs the *latest* Android
-CLI from scratch and builds with Lightbuild (`ANDROID_CLI_BUILD=true` is set
-workflow-wide), so the scheduled run is a daily check that the alpha toolchain
-still installs and builds cleanly on a stock Ubuntu runner — the CLI updates
-itself between commits, and without the schedule a behaviour change like the
-exit codes above would only show up on the next push. (GitHub pauses scheduled
+CLI from scratch, then the pinned Lightbuild package and its `lightbuild` CLI
+(`.github/scripts/install-lightbuild.sh`), and builds with `lightbuild`, so
+the scheduled run is a daily check that the alpha toolchain still installs and
+builds cleanly on a stock Ubuntu runner — the Android CLI updates itself
+between commits, and without the schedule a behaviour change like the exit
+codes above would only show up on the next push. (GitHub pauses scheduled
 workflows after 60 days without repository activity.)
 
 ### Core jobs
 
 | Job | What it does |
 |---|---|
-| **Build + Unit Tests (Lightbuild)** | Builds `ui`, `ui:deviceTest` and `app:app-debug.apk` (every target named explicitly, and every build through the exit-code wrapper — see the rough edges above), runs the JVM unit tests with `android build test "ui:hostTest"`, and uploads the test results and both APKs. |
+| **Build + Unit Tests (Lightbuild)** | Builds `ui`, `ui:deviceTest` and `app:app-debug.apk` (every target named explicitly, `lightbuild`'s exit code the verdict), runs the JVM unit tests with `lightbuild test "ui:hostTest"`, and uploads the test results and both APKs. |
 | **Release Build** | Builds `app:app-release.apk` to guard the R8 configuration, and archives the release APK together with `mapping.txt` — without the mapping file a release stack trace is undecodable. |
 | **Instrumented Tests (API 34, 36; API 37.2 canary on lavapipe and on auto, non-blocking)** | Boots emulators with `reactivecircus/android-emulator-runner`, installs the self-instrumenting `androidTest` APK, and runs the Compose UI tests. `am instrument -w` exits 0 even when tests fail, so the job greps the output for the `OK (N tests)` summary line. The **shake journey** then reuses the booted emulator as a blocking end-to-end check (sensor → detection → UI), giving the journey coverage on API 34 and 36 alongside the experimental jobs' API 37. |
 
@@ -390,7 +440,7 @@ and 37.2 for the Emulator Preview), while the multi-run ones stay on 37.0:
 
 | Job | What it does |
 |---|---|
-| **Android CLI experiment** | Drives the whole emulator flow with the CLI: `android sdk install --canary` for the canary emulator and the API 37.0 or 37.2 16 KB-page-size image, `android emulator create` + `start`, and the instrumented tests through the CLI's native runner (`android build test "ui:deviceTest"`) instead of adb + `am instrument`. It then reuses the still-running emulator for the **shake journey**. |
+| **Android CLI experiment** | Drives the whole emulator flow with the CLI: `android sdk install --canary` for the canary emulator and the API 37.0 or 37.2 16 KB-page-size image, `android emulator create` + `start`, and the instrumented tests through Lightbuild's own device-test runner (`lightbuild test "ui:deviceTest"`) instead of adb + `am instrument`. It then reuses the still-running emulator for the **shake journey**. |
 | **Emulator Preview experiment** | Runs the separate **Android Emulator (Preview)** SDK package (`emulators;latest`, installs under `emulators/latest/`, currently API 37+ only) by launching its binary directly on the API 37.0, 37.1 and 37.2 images, then runs the instrumented tests on it and attempts the **shake journey**, which currently skips there: the preview package does not implement the `sensor set` console command (see below). |
 | **Emulator Preview experiment multi-run** | Snapshot save/restore of the *live app* on the preview emulator: four boot cycles with snapshots enabled, the app launched only in cycle 1, each cycle shut down gracefully so a snapshot is saved. Later cycles verify the app came back by itself — process alive, window focused, and a non-empty Compose layout tree (`android layout`), since a mostly-static screen can't be judged by screenshot diffing. Each cycle then runs the **shake journey** against the restored instance before its snapshot is saved — the app is genuinely used every cycle, so later cycles prove a *used* app survives restore and still runs (the shake journey is attempted in assert-only mode and skips on the preview package). |
 | **Android CLI experiment multi-run** | The same four-cycle snapshot experiment, but driven entirely by the CLI (`android emulator start`/`stop`, `android run`, `android screen capture`, `android layout`) against the canary emulator — a direct comparison of the CLI tooling against the preview-emulator job. Also runs the **shake journey** in every cycle before the snapshot save. |
@@ -449,14 +499,15 @@ Notes that came out of building these jobs:
    :: Windows (x86_64)
    curl -fsSL https://dl.google.com/android/cli/latest/windows_x86_64/install.cmd -o "%TEMP%\i.cmd" && "%TEMP%\i.cmd"
    ```
-2. Enable Lightbuild support:
+2. Install Lightbuild and its CLI:
    ```sh
-   export ANDROID_CLI_BUILD=true
+   android sdk install build/lightbuild/0.0.30
+   bash "$(android info sdk)/build/lightbuild/0.0.30/cli/install.sh"
    ```
 3. Build, test, and deploy:
    ```sh
-   android build "app"
-   sh .github/scripts/android-build.sh test "ui:hostTest"
+   lightbuild build "app"
+   lightbuild test "ui:hostTest"
    android run --apks=app/build/outputs/apk/debug/app-debug.apk
    ```
 
