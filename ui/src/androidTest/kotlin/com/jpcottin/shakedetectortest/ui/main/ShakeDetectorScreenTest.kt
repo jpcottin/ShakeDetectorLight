@@ -46,12 +46,14 @@ class ShakeDetectorScreenTest {
   }
 
   @Test
-  fun noAccelerometer_showsUnavailableMessageInsteadOfReading() {
+  fun noAccelerometer_showsUnavailableMessageInsteadOfPromptAndReading() {
     composeTestRule.setContent {
       ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.NONE, isSensorAvailable = false))
     }
 
     composeTestRule.onNodeWithText(resources.getString(R.string.sensor_unavailable)).assertExists()
+    // Nothing to shake for: the prompt would invite what the device cannot detect.
+    composeTestRule.onNodeWithText(resources.getString(R.string.shake_prompt)).assertDoesNotExist()
     composeTestRule
       .onNodeWithText(resources.getString(R.string.acceleration_label, 0f))
       .assertDoesNotExist()
