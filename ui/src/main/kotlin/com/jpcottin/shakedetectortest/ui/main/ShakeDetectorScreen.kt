@@ -65,48 +65,54 @@ internal fun ShakeDetectorContent(uiState: ShakeUiState, modifier: Modifier = Mo
     verticalArrangement = Arrangement.Center,
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
-    Text(
-      text =
-        stringResource(
-          when (uiState.shakeLevel) {
-            ShakeLevel.SMALL -> R.string.shake_small
-            ShakeLevel.BIG -> R.string.shake_big
-            ShakeLevel.NONE -> R.string.shake_prompt
-          }
-        ),
-      color =
-        when (uiState.shakeLevel) {
-          ShakeLevel.SMALL -> MaterialTheme.colorScheme.tertiary
-          ShakeLevel.BIG -> MaterialTheme.colorScheme.primary
-          ShakeLevel.NONE -> MaterialTheme.colorScheme.onBackground
-        },
-      style =
-        when (uiState.shakeLevel) {
-          ShakeLevel.SMALL -> MaterialTheme.typography.headlineLarge
-          ShakeLevel.BIG -> MaterialTheme.typography.displaySmall
-          ShakeLevel.NONE -> MaterialTheme.typography.headlineMedium
-        },
-      textAlign = TextAlign.Center,
-      // Announce shake changes to TalkBack users, who can't see the colour change.
-      modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-    )
-
     if (uiState.isSensorAvailable) {
+      ShakeLabel(uiState.shakeLevel)
       Text(
         text = stringResource(R.string.acceleration_label, uiState.acceleration),
         style = MaterialTheme.typography.bodyLarge,
         modifier = Modifier.padding(top = 16.dp),
       )
     } else {
+      // Nothing to shake for: the prompt would invite what the device cannot detect, so
+      // the headline says why instead.
       Text(
         text = stringResource(R.string.sensor_unavailable),
-        style = MaterialTheme.typography.bodyLarge,
+        style = MaterialTheme.typography.headlineMedium,
         color = MaterialTheme.colorScheme.error,
         textAlign = TextAlign.Center,
-        modifier = Modifier.padding(top = 16.dp),
       )
     }
   }
+}
+
+/** The headline: the prompt at rest, the detected level otherwise. */
+@Composable
+private fun ShakeLabel(shakeLevel: ShakeLevel) {
+  Text(
+    text =
+      stringResource(
+        when (shakeLevel) {
+          ShakeLevel.SMALL -> R.string.shake_small
+          ShakeLevel.BIG -> R.string.shake_big
+          ShakeLevel.NONE -> R.string.shake_prompt
+        }
+      ),
+    color =
+      when (shakeLevel) {
+        ShakeLevel.SMALL -> MaterialTheme.colorScheme.tertiary
+        ShakeLevel.BIG -> MaterialTheme.colorScheme.primary
+        ShakeLevel.NONE -> MaterialTheme.colorScheme.onBackground
+      },
+    style =
+      when (shakeLevel) {
+        ShakeLevel.SMALL -> MaterialTheme.typography.headlineLarge
+        ShakeLevel.BIG -> MaterialTheme.typography.displaySmall
+        ShakeLevel.NONE -> MaterialTheme.typography.headlineMedium
+      },
+    textAlign = TextAlign.Center,
+    // Announce shake changes to TalkBack users, who can't see the colour change.
+    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+  )
 }
 
 private fun vibrate(context: Context) {

@@ -366,7 +366,7 @@ lightbuild test "ui:hostTest"
 `ShakeDetectorScreenTest` uses the **Compose testing APIs**
 (`createAndroidComposeRule`, `onNodeWithText`) with **AndroidJUnitRunner** to
 verify each UI state renders the right message, including the no-accelerometer
-fallback. The screen is split into a stateful wrapper (`ShakeDetectorScreen`)
+fallback, which shows neither the shake prompt nor a reading. The screen is split into a stateful wrapper (`ShakeDetectorScreen`)
 and a stateless `ShakeDetectorContent(uiState)` so tests can drive every state
 deterministically — no need to physically shake the test device. Assertions read
 their expected text from `strings.xml`, so they don't drift from the UI.
