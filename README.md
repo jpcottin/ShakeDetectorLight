@@ -370,6 +370,11 @@ fallback, which shows neither the shake prompt nor a reading. The screen is spli
 and a stateless `ShakeDetectorContent(uiState)` so tests can drive every state
 deterministically — no need to physically shake the test device. Assertions read
 their expected text from `strings.xml`, so they don't drift from the UI.
+`ShakeDetectorScreenBuzzTest` drives the stateful screen itself with a fake
+accelerometer and a variable clock, the vibrator replaced by a counter
+(`ShakeDetectorScreen`'s `onShake` parameter): one buzz for a shake, none for a
+weaker peak inside the hold window, none when the screen's saved state is
+restored with the shake still on it, and one more for the next shake.
 
 Run them on a connected device/emulator with:
 

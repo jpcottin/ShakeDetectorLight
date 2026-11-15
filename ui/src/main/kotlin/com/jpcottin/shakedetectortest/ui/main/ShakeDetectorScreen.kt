@@ -40,6 +40,8 @@ fun ShakeDetectorScreen(
   modifier: Modifier = Modifier,
   viewModel: ShakeDetectorViewModel =
     viewModel(factory = ShakeDetectorViewModel.factory(LocalContext.current)),
+  /** What a detected shake does to the device: a short buzz. A test counts the calls instead. */
+  onShake: (Context) -> Unit = ::vibrate,
 ) {
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val context = LocalContext.current
@@ -49,7 +51,7 @@ fun ShakeDetectorScreen(
   var buzzedFor by rememberSaveable { mutableIntStateOf(uiState.shakeCount) }
   LaunchedEffect(uiState.shakeCount) {
     if (uiState.shakeCount > buzzedFor) {
-      vibrate(context)
+      onShake(context)
     }
     buzzedFor = uiState.shakeCount
   }
@@ -115,7 +117,7 @@ private fun ShakeLabel(shakeLevel: ShakeLevel) {
   )
 }
 
-private fun vibrate(context: Context) {
+internal fun vibrate(context: Context) {
   val vibrator =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       val vibratorManager =
