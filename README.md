@@ -4,7 +4,7 @@
 
 An Android app that detects when you shake your phone, classifies the shake as
 **small** or **big**, gives haptic feedback (vibration), and shows the live
-accelerometer magnitude on screen.
+accelerometer magnitude on screen, in m/s².
 
 Its distinguishing feature is not the app itself but **how it is built**: it is
 a fully working example of a project using **Lightbuild**, Google's new
@@ -12,7 +12,7 @@ declarative build system, built and tested with its **`lightbuild` CLI** and
 deployed with the **Android CLI** — no Gradle files anywhere in the repository.
 
 ```
-Shake your phone!          →  resting (magnitude ≈ 9.81, gravity)
+Shake your phone!          →  resting (magnitude ≈ 9.81 m/s², gravity)
 Small Shake Detected!      →  magnitude > 11   (pink, vibrates)
 Big Shake Detected!        →  magnitude > 16   (purple, vibrates)
 ```

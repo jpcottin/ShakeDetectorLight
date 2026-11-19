@@ -28,6 +28,16 @@ class ShakeDetectorScreenTest {
   }
 
   @Test
+  fun idleState_readingCarriesItsUnit() {
+    composeTestRule.setContent {
+      ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.NONE, acceleration = 9.81f))
+    }
+
+    // A bare 9.81 says nothing about what is measured; the thresholds are in m/s² too.
+    composeTestRule.onNodeWithText("m/s²", substring = true).assertExists()
+  }
+
+  @Test
   fun smallShake_showsSmallShakeMessage() {
     composeTestRule.setContent {
       ShakeDetectorContent(ShakeUiState(shakeLevel = ShakeLevel.SMALL, acceleration = 13.42f))
