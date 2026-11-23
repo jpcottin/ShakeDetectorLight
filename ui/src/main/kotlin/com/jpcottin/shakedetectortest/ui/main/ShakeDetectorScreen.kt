@@ -78,7 +78,10 @@ internal fun ShakeDetectorContent(uiState: ShakeUiState, modifier: Modifier = Mo
       // Nothing to shake for: the prompt would invite what the device cannot detect, so
       // the headline says why instead.
       Text(
-        text = stringResource(R.string.sensor_unavailable),
+        text =
+          stringResource(
+            if (uiState.sensorReadFailed) R.string.sensor_unreadable else R.string.sensor_unavailable
+          ),
         style = MaterialTheme.typography.headlineMedium,
         color = MaterialTheme.colorScheme.error,
         textAlign = TextAlign.Center,

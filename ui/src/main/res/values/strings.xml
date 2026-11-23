@@ -6,4 +6,5 @@
     <string name="shake_big">Big Shake Detected!</string>
     <string name="acceleration_label">Acceleration: %1$.2f m/s²</string>
     <string name="sensor_unavailable">This device has no accelerometer.</string>
+    <string name="sensor_unreadable">The accelerometer could not be read. Leave the app and come back to try again.</string>
 </resources>

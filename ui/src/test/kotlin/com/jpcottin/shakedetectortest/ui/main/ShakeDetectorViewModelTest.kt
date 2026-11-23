@@ -146,7 +146,7 @@ class ShakeDetectorViewModelTest {
     }
 
   @Test
-  fun `a failed registration reads as a missing sensor`() =
+  fun `a failed registration reads as an unreadable sensor, not a missing one`() =
     runTest(dispatcher) {
       val sensor =
         object : Accelerometer {
@@ -162,6 +162,7 @@ class ShakeDetectorViewModelTest {
       runCurrent()
 
       assertFalse(viewModel.uiState.value.isSensorAvailable)
+      assertTrue(viewModel.uiState.value.sensorReadFailed)
       collector.cancel()
     }
 
@@ -171,5 +172,6 @@ class ShakeDetectorViewModelTest {
       val viewModel = ShakeDetectorViewModel(FakeAccelerometer(isAvailable = false)) { now }
 
       assertFalse(viewModel.uiState.value.isSensorAvailable)
+      assertFalse(viewModel.uiState.value.sensorReadFailed)
     }
 }

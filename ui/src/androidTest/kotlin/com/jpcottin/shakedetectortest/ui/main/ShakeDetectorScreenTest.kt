@@ -68,4 +68,15 @@ class ShakeDetectorScreenTest {
       .onNodeWithText(resources.getString(R.string.acceleration_label, 0f))
       .assertDoesNotExist()
   }
+
+  @Test
+  fun unreadableAccelerometer_saysSoInsteadOfClaimingThereIsNone() {
+    composeTestRule.setContent {
+      ShakeDetectorContent(ShakeUiState(isSensorAvailable = false, sensorReadFailed = true))
+    }
+
+    composeTestRule.onNodeWithText(resources.getString(R.string.sensor_unreadable)).assertExists()
+    composeTestRule.onNodeWithText(resources.getString(R.string.sensor_unavailable)).assertDoesNotExist()
+    composeTestRule.onNodeWithText(resources.getString(R.string.shake_prompt)).assertDoesNotExist()
+  }
 }
