@@ -300,7 +300,7 @@ android run --apks=app/build/outputs/apk/debug/app-debug.apk         # deploy
 - **[Jetpack Compose](https://developer.android.com/compose)** — declarative UI toolkit; the whole UI is composables, no XML layouts.
 - **[Material 3](https://developer.android.com/develop/ui/compose/designsystems/material3)** — theming (dynamic color on Android 12+, light/dark themes) and typography.
 - **[Navigation 3](https://developer.android.com/guide/navigation/navigation-3)** — the new Compose-native navigation library (`NavDisplay` + a type-safe, serializable back stack).
-- **[SensorManager](https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion)** — raw `TYPE_ACCELEROMETER` events; the shake magnitude is `sqrt(x² + y² + z²)`. `AccelerometerDataSource` exposes the sensor as a cold `Flow` built with `callbackFlow`, so the listener is registered on collection (at `SENSOR_DELAY_GAME`, about 50 Hz, fast enough to catch the peak of a quick flick) and unregistered in `awaitClose`; a registration that fails closes the flow, which the screen shows as a missing sensor. The data source implements a small `Accelerometer` interface, which is what the ViewModel depends on, so its JVM tests feed it readings directly.
+- **[SensorManager](https://developer.android.com/develop/sensors-and-location/sensors/sensors_motion)** — raw `TYPE_ACCELEROMETER` events; the shake magnitude is `sqrt(x² + y² + z²)`. `AccelerometerDataSource` exposes the sensor as a cold `Flow` built with `callbackFlow`, so the listener is registered on collection (at `SENSOR_DELAY_GAME`, about 50 Hz, fast enough to catch the peak of a quick flick) and unregistered in `awaitClose`; a registration that fails closes the flow, which the screen reports as a sensor that could not be read (not as a missing one). The data source implements a small `Accelerometer` interface, which is what the ViewModel depends on, so its JVM tests feed it readings directly.
 - **[ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel) + `StateFlow`** — `ShakeDetectorViewModel` turns the raw stream into a `ShakeUiState`. `stateIn(WhileSubscribed(5_000))` plus `collectAsStateWithLifecycle()` means the accelerometer is only subscribed while the UI is actually visible: backgrounding the app releases the sensor instead of draining the battery. Verified with `adb shell dumpsys sensorservice`, which logs the matching `+`/`−` registration pair.
 - **[Vibrator / VibratorManager](https://developer.android.com/reference/android/os/VibratorManager)** — haptic feedback on shake detection, with API-level-aware fallbacks down to `minSdk 24`.
 - **Edge-to-edge** — `enableEdgeToEdge()` + `safeDrawingPadding()`.
@@ -356,7 +356,7 @@ lightbuild test "ui:hostTest"
   becomes a shake, the sensor is released once nobody collects and the shake
   count survives that release and the next subscription, a shake read first
   thing on return from the background counts, a failed registration
-  reads as a missing sensor, and a device without an accelerometer starts that
+  reads as an unreadable sensor rather than a missing one, and a device without an accelerometer starts that
   way. The 5-second unsubscribe timeout runs on virtual time, so nothing sleeps.
 
 30 unit tests total.
@@ -366,7 +366,8 @@ lightbuild test "ui:hostTest"
 `ShakeDetectorScreenTest` uses the **Compose testing APIs**
 (`createAndroidComposeRule`, `onNodeWithText`) with **AndroidJUnitRunner** to
 verify each UI state renders the right message, including the no-accelerometer
-fallback, which shows neither the shake prompt nor a reading. The screen is split into a stateful wrapper (`ShakeDetectorScreen`)
+fallback, which shows neither the shake prompt nor a reading, and the message for an
+accelerometer that could not be read. The screen is split into a stateful wrapper (`ShakeDetectorScreen`)
 and a stateless `ShakeDetectorContent(uiState)` so tests can drive every state
 deterministically — no need to physically shake the test device. Assertions read
 their expected text from `strings.xml`, so they don't drift from the UI.

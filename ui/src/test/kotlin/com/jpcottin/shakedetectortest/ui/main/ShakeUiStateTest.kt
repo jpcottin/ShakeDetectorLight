@@ -2,6 +2,7 @@ package com.jpcottin.shakedetectortest.ui.main
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -144,11 +145,12 @@ class ShakeUiStateTest {
   @Test
   fun `a reading marks the sensor available again after a failed registration`() {
     // What the catch branch leaves behind once registerListener returned false.
-    val absent = idle.copy(isSensorAvailable = false)
+    val absent = idle.copy(isSensorAvailable = false, sensorReadFailed = true)
 
     val state = absent.reduce(acceleration = 9.81f, now = 1_000L)
 
     assertTrue(state.isSensorAvailable)
+    assertFalse(state.sensorReadFailed)
     assertEquals(9.81f, state.acceleration, 0.001f)
   }
 

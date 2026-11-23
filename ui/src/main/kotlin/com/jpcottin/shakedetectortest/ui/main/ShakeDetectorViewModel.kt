@@ -22,6 +22,11 @@ data class ShakeUiState(
   val acceleration: Float = 0f,
   val isSensorAvailable: Boolean = true,
   /**
+   * The device has an accelerometer, but listening to it failed: the screen says so rather
+   * than claim the sensor is missing. Only meaningful while [isSensorAvailable] is false.
+   */
+  val sensorReadFailed: Boolean = false,
+  /**
    * How many shakes have been detected since the sensor was first read: one per shake, however
    * many peaks it has. The screen vibrates when this grows, never on a redraw.
    */
@@ -63,7 +68,8 @@ internal fun ShakeUiState.reduce(acceleration: Float, now: Long): ShakeUiState {
   }
   // A reading is proof the sensor delivers, whatever an earlier registration attempt
   // said: the flow restarts after a failed registration and may succeed the next time.
-  return if (next.isSensorAvailable) next else next.copy(isSensorAvailable = true)
+  return if (next.isSensorAvailable && !next.sensorReadFailed) next
+  else next.copy(isSensorAvailable = true, sensorReadFailed = false)
 }
 
 /**
@@ -84,8 +90,9 @@ class ShakeDetectorViewModel(
   val uiState: StateFlow<ShakeUiState> =
     accelerometer.magnitude
       .map { reading -> latest.reduce(acceleration = reading, now = elapsedRealtimeMs()).also { latest = it } }
-      // A sensor that could not be subscribed shows as absent rather than as a frozen reading.
-      .catch { emit(latest.copy(isSensorAvailable = false).also { latest = it }) }
+      // A sensor that could not be subscribed shows as unreadable rather than as a frozen
+      // reading, and not as missing either: the device does have one.
+      .catch { emit(latest.copy(isSensorAvailable = false, sensorReadFailed = true).also { latest = it }) }
       .stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(stopTimeoutMillis = 5_000),
