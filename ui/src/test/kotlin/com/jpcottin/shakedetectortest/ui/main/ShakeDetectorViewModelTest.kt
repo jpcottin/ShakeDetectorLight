@@ -5,6 +5,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.onStart
@@ -164,6 +165,45 @@ class ShakeDetectorViewModelTest {
       assertFalse(viewModel.uiState.value.isSensorAvailable)
       assertTrue(viewModel.uiState.value.sensorReadFailed)
       collector.cancel()
+    }
+
+  @Test
+  fun `leaving and coming back retries a sensor that could not be read`() =
+    runTest(dispatcher) {
+      // The first subscription fails, as a refused registration does; the next one works.
+      val readings = MutableSharedFlow<Float>()
+      var subscriptions = 0
+      val sensor =
+        object : Accelerometer {
+          override val isAvailable = true
+          override val magnitude: Flow<Float> = flow {
+            if (++subscriptions == 1) {
+              throw IllegalStateException("accelerometer listener registration failed")
+            }
+            emitAll(readings)
+          }
+        }
+      val viewModel = ShakeDetectorViewModel(sensor) { now }
+
+      val firstVisit = launch { viewModel.uiState.collect() }
+      runCurrent()
+      assertTrue(viewModel.uiState.value.sensorReadFailed)
+
+      // What the screen asks for: leave the app (past the stop timeout) and come back.
+      firstVisit.cancel()
+      advanceTimeBy(5_001)
+      runCurrent()
+      val secondVisit = launch { viewModel.uiState.collect() }
+      runCurrent()
+      readings.emit(9.81f)
+      runCurrent()
+
+      val state = viewModel.uiState.value
+      assertEquals(2, subscriptions)
+      assertTrue(state.isSensorAvailable)
+      assertFalse(state.sensorReadFailed)
+      assertEquals(9.81f, state.acceleration, 0.001f)
+      secondVisit.cancel()
     }
 
   @Test
