@@ -356,10 +356,11 @@ lightbuild test "ui:hostTest"
   becomes a shake, the sensor is released once nobody collects and the shake
   count survives that release and the next subscription, a shake read first
   thing on return from the background counts, a failed registration
-  reads as an unreadable sensor rather than a missing one, and a device without an accelerometer starts that
+  reads as an unreadable sensor rather than a missing one, leaving and coming
+  back (past the stop timeout) subscribes it again as the screen promises, and a device without an accelerometer starts that
   way. The 5-second unsubscribe timeout runs on virtual time, so nothing sleeps.
 
-30 unit tests total.
+31 unit tests total.
 
 ### UI tests (`ui/src/androidTest`)
 
